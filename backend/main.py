@@ -1,8 +1,5 @@
-from fastapi import FastAPI
+"""Compatibility entry point: uv run uvicorn main:app --reload."""
 
-app = FastAPI(title="Buyora API")
+from app.main import create_app
 
-
-@app.get("/")
-async def root():
-    return {"message": "Welcome to Buyora API"}
+app = create_app()
