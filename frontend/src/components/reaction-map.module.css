@@ -1,0 +1,807 @@
+.shell {
+  --ignored: #9aa6ad;
+  --engaged: #729e8c;
+  --objection: #c49b56;
+  --drop-off: #bd766d;
+  --inboxed: var(--text);
+  --viewing: var(--accent);
+  border-top: 1px solid var(--border);
+}
+.autoPlayback {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 13px 15px;
+  border-top: 1px solid var(--border);
+  color: var(--secondary);
+  font-size: calc(9px * var(--text-scale));
+}
+.autoPlayback > button {
+  color: var(--accent);
+  font-size: inherit;
+  border-bottom: 1px solid currentColor;
+  padding: 2px 0;
+}
+.shell [data-state="ignored"] {
+  --state-color: var(--ignored);
+}
+.shell [data-state="engaged"] {
+  --state-color: var(--engaged);
+}
+.shell [data-state="objection"] {
+  --state-color: var(--objection);
+}
+.shell [data-state="drop-off"] {
+  --state-color: var(--drop-off);
+}
+.shell [data-state="inboxed"] {
+  --state-color: var(--inboxed);
+}
+.shell [data-state="unreached"] {
+  --state-color: var(--border);
+}
+.shell [data-state="viewing"] {
+  --state-color: var(--viewing);
+}
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 255px;
+}
+.main {
+  min-width: 0;
+}
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 18px 20px 0;
+}
+.zoomControls {
+  display: flex;
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  overflow: hidden;
+  background: var(--surface);
+}
+.zoomControls button,
+.zoomControls > span {
+  min-width: 30px;
+  height: 29px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: calc(11px * var(--text-scale));
+  padding: 0 8px;
+}
+.zoomControls > span {
+  color: var(--secondary);
+  font-size: calc(10px * var(--text-scale));
+  border-inline: 1px solid var(--border);
+  min-width: 44px;
+}
+.zoomControls button:hover:not(:disabled) {
+  background: var(--muted-surface);
+}
+.zoomControls button.resetView {
+  border-left: 1px solid var(--border);
+  font-size: calc(10px * var(--text-scale));
+}
+.stage {
+  position: relative;
+  background: radial-gradient(
+    ellipse at center,
+    var(--muted-surface),
+    transparent 70%
+  );
+}
+.stage > svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 720 / 460;
+  min-height: 315px;
+  max-height: 520px;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+.stage > svg.dragging {
+  cursor: grabbing;
+}
+.edge {
+  stroke: var(--border);
+  stroke-width: 1;
+  fill: none;
+  stroke-dasharray: 3 5;
+  opacity: 0.3;
+  pointer-events: none;
+  transition:
+    stroke 0.2s,
+    opacity 0.2s;
+}
+.edge.reached {
+  opacity: 0.75;
+  stroke: var(--secondary);
+  stroke-width: 0.8;
+}
+.edge.selectedEdge {
+  opacity: 1;
+  stroke: var(--accent);
+  stroke-width: 1.6;
+}
+.edge.transmitting {
+  stroke: var(--accent);
+  stroke-width: 1.8;
+  opacity: 1;
+  animation: transmission 0.7s linear infinite paused;
+}
+.running .edge.transmitting {
+  animation-play-state: running;
+}
+.source {
+  fill: var(--button);
+}
+.source .sourceHalo {
+  fill: var(--accent-bg);
+  stroke: var(--border);
+  stroke-width: 0.6;
+}
+.source > rect {
+  fill: var(--surface);
+  stroke: var(--border);
+  stroke-width: 0.6;
+}
+.source > text {
+  fill: var(--accent);
+  font-family: Aeonik, sans-serif;
+  font-size: calc(10px * var(--text-scale));
+}
+.viewer {
+  cursor: pointer;
+  outline: none;
+  transition: opacity 0.2s;
+}
+.viewer.dimmed {
+  opacity: 0.17;
+}
+.hitArea {
+  fill: transparent;
+}
+.dot {
+  fill: var(--state-color);
+  stroke: var(--surface);
+  stroke-width: 1.5;
+  transition:
+    fill 0.25s,
+    r 0.15s;
+}
+.viewer[data-state="unreached"] .dot {
+  fill: var(--surface);
+  stroke: var(--border);
+  stroke-width: 1.4;
+}
+.selectionHalo {
+  fill: transparent;
+  stroke: transparent;
+  stroke-width: 1.4;
+}
+.viewer.selected .selectionHalo,
+.viewer:focus-visible .selectionHalo,
+.viewer:hover .selectionHalo {
+  stroke: var(--accent);
+  fill: color-mix(in srgb, var(--accent-bg) 50%, transparent);
+}
+.exposurePulse {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 1;
+  opacity: 0.4;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: exposure 0.85s ease-out infinite paused;
+  pointer-events: none;
+}
+.running .exposurePulse {
+  animation-play-state: running;
+}
+.nodeLabel > rect {
+  fill: var(--surface);
+  stroke: var(--border);
+  stroke-width: 0.8;
+}
+.nodeLabel > text {
+  fill: var(--text);
+  font-family: Aeonik, sans-serif;
+  font-size: calc(10px * var(--text-scale));
+}
+.stageFooter {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 0 20px 18px;
+  align-items: center;
+}
+.dragHint {
+  color: var(--secondary);
+  font-size: calc(9px * var(--text-scale));
+}
+.reachBadge {
+  color: var(--accent);
+  background: var(--accent-bg);
+  border: 1px solid var(--border);
+  padding: 5px 8px;
+  border-radius: 5px;
+  font-size: calc(9px * var(--text-scale));
+  white-space: nowrap;
+}
+.reachBadge.complete {
+  color: var(--success);
+  background: var(--success-bg);
+}
+.playback {
+  padding: 15px 20px 17px;
+  border-top: 1px solid var(--border);
+  background: color-mix(in srgb, var(--muted-surface) 30%, var(--surface));
+}
+.playbackTop {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+}
+.playButtons {
+  display: flex;
+  gap: 5px;
+  align-items: center;
+}
+.playButtons .playButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  padding: 7px 11px;
+  border-radius: 30px;
+  min-height: 33px;
+  font-size: calc(11px * var(--text-scale));
+  min-width: 88px;
+}
+.playButtons .playButton:hover {
+  border-color: var(--accent);
+  background: var(--accent-bg);
+}
+.pauseIcon {
+  font-weight: 700;
+  font-size: calc(15px * var(--text-scale));
+  line-height: 1;
+}
+.smallButton {
+  display: grid;
+  place-items: center;
+  width: 29px;
+  height: 29px;
+  border-radius: 50%;
+  color: var(--secondary);
+}
+.smallButton:hover {
+  background: var(--muted-surface);
+  color: var(--accent);
+}
+.roundLabel {
+  color: var(--secondary);
+  font-size: calc(9px * var(--text-scale));
+  flex: 1;
+}
+.speed > select {
+  width: 58px;
+  font-size: calc(10px * var(--text-scale));
+  padding: 4px 6px;
+  height: 29px;
+  border-radius: 5px;
+}
+.timeline {
+  display: block;
+  margin-top: 13px;
+}
+.timeline > input {
+  width: 100%;
+  display: block;
+  height: 16px;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  background: transparent;
+  accent-color: var(--accent);
+}
+.roundTicks {
+  display: flex;
+  justify-content: space-between;
+  font-size: calc(8px * var(--text-scale));
+  color: var(--secondary);
+  margin-top: 3px;
+}
+.inspector {
+  border-left: 1px solid var(--border);
+  padding: 24px;
+  background: color-mix(in srgb, var(--muted-surface) 30%, var(--surface));
+}
+.inspectorProfile {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  margin: 23px 0;
+  padding-bottom: 22px;
+  border-bottom: 1px solid var(--border);
+}
+.inspectorProfile h3 {
+  font-size: calc(16px * var(--text-scale));
+  font-weight: 400;
+}
+.inspectorProfile p {
+  font-size: calc(9px * var(--text-scale));
+  line-height: 1.7;
+  margin-top: 5px;
+}
+.inspectorFacts {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.inspectorFacts dt {
+  font-size: calc(9px * var(--text-scale));
+  color: var(--secondary);
+  letter-spacing: 0.04em;
+  margin-bottom: 8px;
+}
+.inspectorFacts dd {
+  margin: 0;
+  font-size: calc(11px * var(--text-scale));
+  line-height: 1.85;
+  color: var(--secondary);
+}
+.inspectorFacts > div:first-child dd {
+  font-size: calc(12px * var(--text-scale));
+  color: var(--text);
+}
+.inspectorFacts dd > span:not(.stateBadge) {
+  font-size: calc(9px * var(--text-scale));
+  color: var(--secondary);
+}
+.inspectorFacts dd.comment {
+  font-size: calc(12px * var(--text-scale));
+  color: var(--text);
+}
+.inspectorFacts dd.action {
+  color: var(--accent);
+}
+.stateBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 9px;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font-size: calc(10px * var(--text-scale));
+}
+.stateBadge > i {
+  height: 6px;
+  width: 6px;
+  background: var(--state-color);
+  border-radius: 50%;
+}
+.viewerNavigation {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 22px;
+  padding-top: 17px;
+  border-top: 1px solid var(--border);
+}
+.viewerNavigation button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--accent);
+  font-size: calc(10px * var(--text-scale));
+  padding: 4px 0;
+}
+.viewerNavigation button:hover {
+  color: var(--text);
+}
+.legend {
+  padding: 14px 20px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  gap: 7px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.legend > button {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  padding: 5px 8px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  font-size: calc(9px * var(--text-scale));
+  color: var(--secondary);
+}
+.legend > button > i {
+  height: 6px;
+  width: 6px;
+  border-radius: 50%;
+  background: var(--state-color);
+}
+.legend > button > strong {
+  font-size: calc(9px * var(--text-scale));
+  color: var(--text);
+  font-weight: 400;
+  margin-left: 2px;
+}
+.legend > button.activeFilter,
+.legend > button:hover {
+  background: var(--accent-bg);
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.waitingCount {
+  font-size: calc(9px * var(--text-scale));
+  color: var(--secondary);
+  margin-left: auto;
+}
+.activity {
+  border-top: 1px solid var(--border);
+  padding: 15px 20px;
+  min-height: 124px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.activityTitle {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: calc(10px * var(--text-scale));
+  color: var(--secondary);
+  margin-bottom: 3px;
+}
+.activity > button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: calc(10px * var(--text-scale));
+  text-align: left;
+  padding: 0;
+  width: fit-content;
+}
+.activity > button:hover {
+  color: var(--accent);
+}
+.activity > button > i {
+  background: var(--state-color);
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+}
+.activity > button > strong {
+  font-weight: 400;
+  font-size: calc(9px * var(--text-scale));
+}
+.activity > button > span {
+  color: var(--secondary);
+  font-size: calc(9px * var(--text-scale));
+}
+.activity > p {
+  font-size: calc(11px * var(--text-scale));
+  margin-top: 6px;
+}
+.disclosure {
+  font-size: calc(9px * var(--text-scale));
+  color: var(--secondary);
+  padding: 13px 20px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  gap: 7px;
+  align-items: flex-start;
+  line-height: 1.8;
+}
+.disclosure > svg {
+  margin-top: 2px;
+}
+.compact {
+  border-top: 0;
+}
+.compact .layout {
+  display: block;
+}
+.compact .toolbar {
+  padding: 17px 15px 0;
+  gap: 8px;
+}
+.compact .toolbar > span {
+  font-size: calc(8px * var(--text-scale));
+  padding: 4px 7px;
+}
+.compact .zoomControls .resetView {
+  display: none;
+}
+.compact .zoomControls button,
+.compact .zoomControls > span {
+  height: 26px;
+  min-width: 25px;
+  font-size: calc(9px * var(--text-scale));
+}
+.compact .stage > svg {
+  height: 290px;
+  min-height: 0;
+  aspect-ratio: auto;
+}
+.compact .dragHint {
+  display: none;
+}
+.compact .stageFooter {
+  padding: 0 15px 13px;
+  justify-content: flex-end;
+}
+.compact .reachBadge {
+  font-size: calc(8px * var(--text-scale));
+}
+.compact .playback {
+  padding: 12px 15px;
+}
+.compact .playbackTop {
+  gap: 8px;
+}
+.compact .playButton {
+  font-size: calc(9px * var(--text-scale));
+  padding: 6px 10px;
+  min-height: 29px;
+  min-width: 78px;
+}
+.compact .roundLabel {
+  font-size: calc(8px * var(--text-scale));
+}
+.compact .speed {
+  display: none;
+}
+.compact .legend {
+  padding: 12px 15px;
+  gap: 5px;
+}
+.compact .legend button {
+  font-size: calc(8px * var(--text-scale));
+  padding: 4px 5px;
+  gap: 4px;
+}
+.compact .legend button strong {
+  font-size: calc(8px * var(--text-scale));
+}
+.compact .waitingCount {
+  display: none;
+}
+.compact .legend button:first-child {
+  display: none;
+}
+.compact .disclosure {
+  font-size: calc(8px * var(--text-scale));
+  padding: 10px 15px;
+}
+@keyframes transmission {
+  to {
+    stroke-dashoffset: -32;
+  }
+}
+@keyframes exposure {
+  from {
+    transform: scale(0.7);
+    opacity: 0.7;
+  }
+  to {
+    transform: scale(1.6);
+    opacity: 0;
+  }
+}
+@media (max-width: 1200px) {
+  .layout {
+    grid-template-columns: minmax(0, 1fr) 225px;
+  }
+  .toolbar,
+  .playback,
+  .legend,
+  .disclosure,
+  .activity {
+    padding-inline: 17px;
+  }
+  .inspector {
+    padding: 20px;
+  }
+  .stageFooter {
+    padding-inline: 17px;
+    flex-wrap: wrap;
+  }
+  .dragHint {
+    font-size: calc(8px * var(--text-scale));
+  }
+  .playbackTop {
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .roundLabel {
+    font-size: calc(8px * var(--text-scale));
+  }
+  .waitingCount {
+    width: 100%;
+    margin-top: 5px;
+    margin-left: 0;
+  }
+}
+@media (max-width: 1000px) {
+  .layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .inspector {
+    border-left: 0;
+    border-top: 1px solid var(--border);
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 15px 30px;
+  }
+  .inspector > :first-child {
+    grid-column: 1 / -1;
+  }
+  .inspectorProfile {
+    margin: 0;
+    padding: 0;
+    border: 0;
+    align-items: flex-start;
+  }
+  .inspectorFacts {
+    grid-column: 2;
+    grid-row: 2 / 4;
+    gap: 14px;
+  }
+  .viewerNavigation {
+    align-self: end;
+  }
+  .stage > svg {
+    min-height: 340px;
+  }
+  .waitingCount {
+    width: auto;
+    margin-left: auto;
+    margin-top: 0;
+  }
+}
+@media (max-width: 520px) {
+  .toolbar {
+    padding-top: 15px;
+  }
+  .toolbar > span {
+    font-size: calc(8px * var(--text-scale));
+  }
+  .zoomControls button,
+  .zoomControls > span {
+    font-size: calc(10px * var(--text-scale));
+    height: 30px;
+  }
+  .zoomControls button.resetView {
+    font-size: calc(9px * var(--text-scale));
+  }
+  .stage > svg {
+    min-height: 310px;
+  }
+  .stageFooter {
+    justify-content: flex-end;
+    padding-top: 5px;
+    gap: 6px;
+  }
+  .dragHint {
+    margin-right: auto;
+    font-size: calc(7px * var(--text-scale));
+  }
+  .reachBadge {
+    font-size: calc(8px * var(--text-scale));
+    padding: 5px 6px;
+  }
+  .playback {
+    padding-block: 14px;
+  }
+  .playbackTop {
+    gap: 8px;
+  }
+  .playButton {
+    min-width: 79px;
+    font-size: calc(10px * var(--text-scale));
+    padding: 7px 9px;
+  }
+  .smallButton {
+    width: 25px;
+  }
+  .roundLabel {
+    font-size: calc(8px * var(--text-scale));
+  }
+  .speed > select {
+    width: 48px;
+    font-size: calc(9px * var(--text-scale));
+  }
+  .timeline {
+    margin-top: 15px;
+  }
+  .timeline > input {
+    height: 22px;
+  }
+  .roundTicks {
+    font-size: calc(8px * var(--text-scale));
+  }
+  .legend {
+    gap: 6px;
+  }
+  .legend > button {
+    font-size: calc(9px * var(--text-scale));
+    padding: 6px;
+  }
+  .waitingCount {
+    width: 100%;
+    margin-left: 0;
+    margin-top: 4px;
+  }
+  .inspector {
+    display: block;
+    padding: 22px;
+  }
+  .inspectorProfile {
+    margin: 20px 0;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--border);
+    align-items: center;
+  }
+  .inspectorProfile h3 {
+    font-size: calc(19px * var(--text-scale));
+  }
+  .inspectorProfile p {
+    font-size: calc(10px * var(--text-scale));
+  }
+  .inspectorFacts {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+  }
+  .inspectorFacts > div:nth-child(n + 3) {
+    grid-column: 1 / -1;
+  }
+  .inspectorFacts dt {
+    font-size: calc(10px * var(--text-scale));
+  }
+  .inspectorFacts dd,
+  .inspectorFacts dd.comment {
+    font-size: calc(12px * var(--text-scale));
+  }
+  .activity > button > span {
+    font-size: calc(9px * var(--text-scale));
+  }
+  .activity > p {
+    font-size: calc(10px * var(--text-scale));
+  }
+  .disclosure {
+    font-size: calc(9px * var(--text-scale));
+  }
+  .compact .stage > svg {
+    height: 285px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .shell *,
+  .shell *::before,
+  .shell *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}

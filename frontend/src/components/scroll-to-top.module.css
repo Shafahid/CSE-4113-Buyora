@@ -1,0 +1,40 @@
+/* Keep the shared button:not(.button) reset from clearing the background. */
+.button.button {
+  position: fixed;
+  right: calc(24px + env(safe-area-inset-right, 0px));
+  bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--button) 88%, var(--button-text));
+  color: var(--button-text);
+  box-shadow: 0 4px 16px color-mix(in srgb, var(--text) 18%, transparent);
+  cursor: pointer;
+}
+
+.button:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 4px;
+}
+
+.arrow {
+  transform: rotate(-90deg);
+}
+
+@media (max-width: 600px) {
+  .button.button {
+    right: calc(16px + env(safe-area-inset-right, 0px));
+    bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  }
+}
+
+@media print {
+  .button.button {
+    display: none;
+  }
+}

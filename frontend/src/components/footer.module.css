@@ -1,0 +1,173 @@
+.footer {
+  background: var(--muted-surface);
+  border-top: 1px solid var(--border);
+  padding: 50px max(24px, calc((100% - 1160px) / 2)) 24px;
+}
+.content {
+  display: grid;
+  grid-template-columns: 1fr 1.6fr;
+  gap: 70px;
+}
+.brandBlock > p {
+  font-size: calc(17px * var(--text-scale));
+  font-weight: 300;
+  margin: 19px 0;
+  line-height: 1.6;
+  color: var(--text);
+}
+.brandBlock > span {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: calc(10px * var(--text-scale));
+  color: var(--secondary);
+  max-width: 290px;
+  line-height: 1.8;
+}
+.brandBlock > span > svg {
+  margin-top: 3px;
+}
+.navigation {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 30px;
+}
+.navigation > div {
+  display: flex;
+  flex-direction: column;
+  gap: 13px;
+  align-items: flex-start;
+}
+.navigation h2 {
+  font-size: calc(12px * var(--text-scale));
+  font-weight: 700;
+  letter-spacing: 0;
+  line-height: 1.6;
+  margin-bottom: 5px;
+}
+.navigation a {
+  font-size: calc(11px * var(--text-scale));
+  color: var(--secondary);
+  line-height: 1.7;
+}
+.navigation a:hover {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+.bottom {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 35px;
+  margin-top: 40px;
+  padding-top: 23px;
+  border-top: 1px solid var(--border);
+}
+.bottom > p {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  max-width: 640px;
+  font-size: calc(10px * var(--text-scale));
+  line-height: 1.8;
+}
+.bottom > p > svg {
+  margin-top: 3px;
+}
+.bottom > span {
+  font-size: calc(10px * var(--text-scale));
+  color: var(--secondary);
+  line-height: 1.8;
+}
+.compact {
+  padding: 30px 40px 22px;
+  background: color-mix(in srgb, var(--muted-surface) 40%, var(--page));
+}
+.compact .content {
+  grid-template-columns: 1fr 1.4fr;
+  gap: 30px;
+}
+.compact .navigation {
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+.compact .navigation > div {
+  gap: 8px;
+}
+.compact .navigation h2 {
+  font-size: calc(10px * var(--text-scale));
+}
+.compact .navigation a {
+  font-size: calc(10px * var(--text-scale));
+}
+.compact .brandBlock p {
+  font-size: calc(13px * var(--text-scale));
+  margin-bottom: 0;
+}
+.compact .bottom {
+  margin-top: 25px;
+  gap: 25px;
+}
+.compact .bottom > p,
+.compact .bottom > span {
+  font-size: calc(9px * var(--text-scale));
+}
+@media (max-width: 1000px) {
+  .content {
+    grid-template-columns: 1fr;
+    gap: 35px;
+  }
+  .brandBlock > p br {
+    display: none;
+  }
+  .compact {
+    padding-inline: 25px;
+  }
+  .compact .content {
+    grid-template-columns: 1fr;
+    gap: 25px;
+  }
+  .bottom {
+    flex-direction: column;
+    gap: 15px;
+  }
+}
+@media (max-width: 520px) {
+  .footer {
+    padding: 35px 20px 24px;
+  }
+  .navigation {
+    grid-template-columns: 1fr 1fr;
+    gap: 30px 22px;
+  }
+  .navigation h2 {
+    font-size: calc(11px * var(--text-scale));
+  }
+  .navigation a {
+    font-size: calc(11px * var(--text-scale));
+  }
+  .navigation > div {
+    gap: 10px;
+  }
+  .brandBlock > p {
+    font-size: calc(16px * var(--text-scale));
+  }
+  .brandBlock > p br {
+    display: initial;
+  }
+  .compact {
+    padding: 28px 18px 23px;
+  }
+  .compact .brandBlock > p br {
+    display: none;
+  }
+  .bottom {
+    margin-top: 30px;
+  }
+}
+@media print {
+  .footer {
+    display: none;
+  }
+}
