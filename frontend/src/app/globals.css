@@ -2256,9 +2256,13 @@ input[type="file"] {
   margin-top: 13px;
 }
 .analyzing {
-  max-width: 600px;
+  max-width: 900px;
   margin: 40px auto;
   text-align: center;
+}
+.analyzing-spread {
+  margin: 28px 0;
+  text-align: left;
 }
 .analyzing > .badge {
   margin: auto;

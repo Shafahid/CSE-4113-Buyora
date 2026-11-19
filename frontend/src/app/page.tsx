@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { SimulationLink } from "@/components/simulation-link";
 import {
   Avatar,
   Badge,
@@ -40,9 +41,9 @@ export default function Home() {
           <Link className="landing-signin" href="/login">
             Sign in
           </Link>
-          <ButtonLink href="/simulate">
+          <SimulationLink>
             Try a simulation <Icon name="arrow" size={16} />
-          </ButtonLink>
+          </SimulationLink>
         </div>
       </header>
       <main id="main-content">
@@ -71,9 +72,9 @@ export default function Home() {
             ))}
           </div>
           <div className="hero-actions" data-landing-reveal>
-            <ButtonLink href="/simulate">
+            <SimulationLink>
               Run simulation <Icon name="arrow" size={18} />
-            </ButtonLink>
+            </SimulationLink>
             <ButtonLink href="/history" secondary>
               View saved reports
             </ButtonLink>
@@ -243,9 +244,9 @@ export default function Home() {
               delivery. The skeptic looking for a little proof. Give each
               perspective a seat at the table.
             </p>
-            <ButtonLink href="/simulate">
+            <SimulationLink>
               Meet your buyer personas <Icon name="arrow" size={17} />
-            </ButtonLink>
+            </SimulationLink>
           </div>
           <div className="perspective-cards" data-landing-stagger>
             {personas.slice(0, 3).map((p, i) => (
@@ -284,9 +285,9 @@ export default function Home() {
           <p>
             Start with a draft. Leave with a clearer idea of what to improve.
           </p>
-          <ButtonLink href="/simulate">
+          <SimulationLink>
             Try your first simulation <Icon name="arrow" size={18} />
-          </ButtonLink>
+          </SimulationLink>
           <span className="cta-note">Explore our AI personas</span>
         </section>
       </main>

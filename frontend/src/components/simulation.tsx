@@ -7,6 +7,7 @@ import {
   Draft,
   Persona,
   Post,
+  Report,
   initialDraft,
   makeReport,
   money,
@@ -29,6 +30,8 @@ import {
   useToast,
 } from "./ui";
 
+import { ReactionMap } from "./reaction-map";
+
 const steps = ["Product & post", "Your audience", "Buyer personas"];
 export function Simulation() {
   const { data: state, error: storageError } = useWorkspace();
@@ -40,9 +43,11 @@ export function Simulation() {
   const [error, setError] = useState("");
   const [running, setRunning] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [preview, setPreview] = useState<Report | null>(null);
   const [regenerated, setRegenerated] = useState(false);
   const pending = useRef<{
     draft: Draft;
+    report: Report;
     product: NonNullable<typeof product>;
   } | null>(null);
   const saved = useRef(false);
@@ -87,7 +92,10 @@ export function Simulation() {
       setError(invalid);
       return;
     }
+    const report = makeReport(draft, product, uid(), new Date().toISOString());
+    setPreview(report);
     pending.current = {
+      report,
       draft: structuredClone(draft),
       product: structuredClone(product),
     };
@@ -98,6 +106,7 @@ export function Simulation() {
   }
   useEffect(() => {
     if (!running) return;
+    window.scrollTo({ top: 0, left: 0, behavior: "instant" });
     const timer = setInterval(
       () => setProgress((p) => Math.min(100, p + 5)),
       180,
@@ -107,8 +116,7 @@ export function Simulation() {
   useEffect(() => {
     if (progress !== 100 || !pending.current || saved.current) return;
     saved.current = true;
-    const { draft: d, product: p } = pending.current;
-    const report = makeReport(d, p, uid(), new Date().toISOString());
+    const { draft: d, report } = pending.current;
     updateDemo((s) => {
       const existing = s.posts.find((x) => x.id === d.post.id);
       const post = savePostVersion(existing, d.post);
@@ -129,23 +137,13 @@ export function Simulation() {
         <Badge tone="blue">
           <Icon name="spark" size={14} /> Demo simulation in progress
         </Badge>
-        <div className="analyzing-orbit">
-          <div className="orbit-circle one" />
-          <div className="orbit-circle two" />
-          <span className="analyzing-core">
-            <span className="small-brand-mark" />
-          </span>
-          {draft.personas.slice(0, 4).map((p, i) => (
-            <div key={p.id} className={`orbit-avatar orbit-${i}`}>
-              <Avatar persona={p} />
-            </div>
-          ))}
+        <div className="analyzing-spread">
+          <ReactionMap
+            reactions={preview?.reactions ?? []}
+            compact
+            progress={progress}
+          />
         </div>
-        <h1>
-          A few different perspectives.
-          <br />
-          One clearer picture.
-        </h1>
         <p>
           {progress < 30
             ? "Preparing your product and promotional post…"

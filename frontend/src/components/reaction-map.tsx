@@ -27,9 +27,11 @@ import { usePageVisible, useReducedMotion } from "@/lib/browser-preferences";
 export function ReactionMap({
   reactions = initialState.reports[0].reactions,
   compact = false,
+  progress,
 }: {
   reactions?: Reaction[];
   compact?: boolean;
+  progress?: number;
 }) {
   const spread = useMemo(() => createSpread(reactions), [reactions]);
   const [playback, setPlayback] = useState({
@@ -53,10 +55,13 @@ export function ReactionMap({
   const reducedMotion = useReducedMotion();
   const pageVisible = usePageVisible();
   const [motionEnabled, setMotionEnabled] = useState(false);
-  const { tick, speed } = playback;
+  const { speed } = playback;
+  const tick = progress === undefined
+    ? playback.tick
+    : Math.round((Math.max(0, Math.min(100, progress)) / 100) * FINAL_TICK);
   const autoplayAllowed = !reducedMotion || motionEnabled;
   const playing =
-    playback.playing && pageVisible && (!compact || autoplayAllowed);
+    progress === undefined && playback.playing && pageVisible && (!compact || autoplayAllowed);
   const summary = spreadSummary(spread, tick);
   const selected =
     spread.viewers.find((v) => v.id === selectedId) || spread.viewers[0];
@@ -431,14 +436,20 @@ export function ReactionMap({
                   ? "Simulation complete"
                   : tick === 0
                     ? "Ready to simulate"
-                    : playing
+                    : playing || progress !== undefined
                       ? "Simulation running"
                       : "Simulation paused"}{" "}
                 · {summary.reached}/{spread.viewers.length} reached
               </span>
             </div>
           </div>
-          {compact ? (
+          {progress !== undefined ? (
+            <div className={styles.autoPlayback}>
+              <span>
+                Simulation progress · {progress}% · Round {summary.round} / 3
+              </span>
+            </div>
+          ) : compact ? (
             <div className={styles.autoPlayback}>
               <span>
                 {!autoplayAllowed

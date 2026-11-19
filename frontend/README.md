@@ -253,3 +253,29 @@ History sorting/filtering and comparisons run client-side over all reports. Comp
 States are `unreached`, `viewing`, `ignored`, `engaged`, `objection`, `drop-off`, and `inboxed`. The graph supports playback, replay, stepping, speed, scrubbing, selection, pan/zoom, filters, and keyboard navigation. The compact landing preview loops after a two-second final hold, pauses when the page is hidden, and respects reduced-motion preferences.
 
 No graph endpoint is required to retain the existing visualization with compatible server reactions. If production propagation results are desired, define a separate graph/timeline contract and replace the local model explicitly.
+
+## Things Yet to Do
+
+- **Design the database:** Define users, products, posts, post versions, personas, simulation jobs, reports, reactions, and recommendations, including relationships and constraints.
+- **Create database migrations:** Build the application tables in PostgreSQL using SQLAlchemy and Alembic.
+- **Implement authentication:** Registration, login, logout, password recovery, session management, and protected endpoints.
+- **Enforce data ownership:** Ensure each seller can access and modify only their own products, posts, simulations, and reports.
+- **Build product APIs:** Create, list, search, update, duplicate, archive, restore, and delete products.
+- **Handle product images:** Validate uploads, store files, and return image URLs.
+- **Build post APIs:** Create and edit promotional posts, associate them with products, and preserve caption version history.
+- **Save simulation drafts:** Persist selected products, post content, audience details, personas, language, and wizard position.
+- **Manage buyer personas:** Provide templates and support selecting, customizing, and generating personas from audience context.
+- **Implement simulation processing:** Validate inputs, create background jobs, evaluate personas, and expose actual progress and job status.
+- **Integrate AI services:** Generate buyer reactions, questions, explanations, and recommendations in English and Bangla.
+- **Implement scoring:** Define consistent rules for the seven score dimensions, aggregate scores, and sentiments.
+- **Handle failures and retries:** Track failed persona evaluations, retry them independently, and preserve successful results.
+- **Store immutable report inputs:** Keep original product, post, audience, and persona snapshots so later edits do not change historical results.
+- **Build report APIs:** Retrieve, list, search, filter, sort, paginate, and delete reports.
+- **Support post improvement:** Generate recommendations and revised captions, save revisions, and rerun simulations as new reports.
+- **Support dashboard and comparisons:** Return summary metrics and compatible report data for comparisons and exports.
+- **Support the spread visualization:** Return compatible persona reactions; the current frontend generates the viewer graph locally.
+- **Implement account settings:** Retrieve and update profiles and support account data export.
+- **Define the API contract:** Document endpoints, payloads, validation errors, statuses, and authentication using OpenAPI.
+- **Connect the frontend:** Replace browser-local demo operations with API calls and real loading, error, authentication, and progress handling.
+- **Test the backend:** Cover ownership, validation, scoring, simulation jobs, retries, snapshot integrity, and database migrations.
+- **Prepare deployment:** Configure secrets, CORS, database connections, worker processes, logging, health checks, backups, rate limits, and AI usage limits.
