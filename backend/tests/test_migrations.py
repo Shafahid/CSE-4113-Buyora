@@ -26,6 +26,7 @@ def test_initial_upgrade_and_downgrade_compile_as_postgresql_sql(monkeypatch) ->
     assert "CREATE TABLE public.posts" in upgrade_sql.getvalue()
     assert "CREATE TABLE public.post_versions" in upgrade_sql.getvalue()
     assert "CREATE TABLE public.simulations" in upgrade_sql.getvalue()
+    assert "CREATE TABLE public.simulation_personas" in upgrade_sql.getvalue()
     assert "REFERENCES public.users (id)" in upgrade_sql.getvalue()
     assert "INSERT INTO alembic_version" in upgrade_sql.getvalue()
     assert "p@ss%word" not in upgrade_sql.getvalue()
