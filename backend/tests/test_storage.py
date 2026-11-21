@@ -40,3 +40,32 @@ def test_storage_requests_and_signed_url(monkeypatch):
     assert requests[0].headers["x-upsert"] == "false"
     assert requests[1].read() == b'{"expiresIn":300}'
     assert requests[2].read() == b'{"prefixes":["a.png"]}'
+
+
+def test_remove_missing_object_but_not_missing_bucket(monkeypatch):
+    import pytest
+
+    from app.core.storage import StorageError
+
+    code = "NoSuchKey"
+
+    def handle(request):
+        return httpx.Response(404, json={"code": code})
+
+    real_client = httpx.Client
+    monkeypatch.setattr(
+        "app.core.storage.httpx.Client",
+        lambda **kwargs: real_client(transport=httpx.MockTransport(handle), **kwargs),
+    )
+    settings = Settings(
+        _env_file=None,
+        database_url="postgresql://user:password@localhost/db",
+        supabase_url="https://project.supabase.co",
+        supabase_secret_key="test-secret",
+        supabase_storage_bucket="private",
+    )
+    client = StorageClient(settings)
+    client.remove("missing.png")
+    code = "NoSuchBucket"
+    with pytest.raises(StorageError):
+        client.remove("missing.png")

@@ -2,8 +2,9 @@ import io
 import logging
 import uuid
 import warnings
+from datetime import UTC, datetime
 from decimal import Decimal
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import (
     APIRouter,
@@ -15,7 +16,7 @@ from fastapi import (
     UploadFile,
 )
 from PIL import Image, UnidentifiedImageError
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from sqlalchemy import select
 
 from app.api.routes.auth import check_origin, get_current_user
@@ -129,13 +130,15 @@ def create_product(
 
 
 @router.get("/products", response_model=list[ProductResponse])
-def list_products(user: CurrentUser, db: DbSession):
+def list_products(
+    user: CurrentUser, db: DbSession, status: Literal["active", "archived"] = "active"
+):
     return list(
         db.scalars(
             select(Product)
             .where(
                 Product.seller_id == user.id,
-                Product.status == "active",
+                Product.status == status,
                 Product.deleted_at.is_(None),
             )
             .order_by(Product.id)
@@ -283,3 +286,121 @@ def get_product(
     return ProductDetail(
         **ProductResponse.model_validate(product).model_dump(), images=signed_images
     )
+
+
+class ProductUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    name: str | None = Field(default=None, min_length=1)
+    category: str | None = Field(default=None, min_length=1)
+    price: Decimal | None = Field(
+        default=None, ge=0, max_digits=12, decimal_places=2, allow_inf_nan=False
+    )
+    description: str | None = None
+    features: list[str] | None = None
+    warranty: str | None = None
+    delivery_info: str | None = None
+    return_policy: str | None = None
+    status: Literal["active", "archived"] | None = None
+
+    @field_validator("name", "category", mode="before")
+    @classmethod
+    def trim_required(cls, value):
+        return value.strip() if isinstance(value, str) else value
+
+    @model_validator(mode="after")
+    def required_fields_cannot_be_cleared(self):
+        for name in ("name", "category", "price", "features", "status"):
+            if name in self.model_fields_set and getattr(self, name) is None:
+                raise ValueError(f"{name} cannot be null")
+        return self
+
+
+@router.patch("/products/{product_id}", response_model=ProductResponse)
+def update_product(
+    product_id: int,
+    data: ProductUpdate,
+    user: CurrentUser,
+    db: DbSession,
+    _: Annotated[None, Depends(check_origin)],
+):
+    product = owned_product(product_id, user, db)
+    updates = data.model_dump(exclude_unset=True)
+    for name, value in updates.items():
+        setattr(product, name, value)
+    if updates:
+        product.updated_at = datetime.now(UTC)
+        db.commit()
+        db.refresh(product)
+    return product
+
+
+@router.post(
+    "/products/{product_id}/duplicate", status_code=201, response_model=ProductResponse
+)
+def duplicate_product(
+    product_id: int,
+    user: CurrentUser,
+    db: DbSession,
+    _: Annotated[None, Depends(check_origin)],
+):
+    source = owned_product(product_id, user, db)
+    product = Product(
+        seller_id=user.id,
+        name=source.name,
+        category=source.category,
+        price=source.price,
+        currency=source.currency,
+        description=source.description,
+        features=list(source.features),
+        warranty=source.warranty,
+        delivery_info=source.delivery_info,
+        return_policy=source.return_policy,
+        status="active",
+    )
+    db.add(product)
+    db.commit()
+    db.refresh(product)
+    return product
+
+
+@router.delete("/products/{product_id}", status_code=204)
+def delete_product(
+    product_id: int,
+    user: CurrentUser,
+    db: DbSession,
+    _: Annotated[None, Depends(check_origin)],
+):
+    product = owned_product(product_id, user, db)
+    product.deleted_at = datetime.now(UTC)
+    product.updated_at = product.deleted_at
+    db.commit()
+    return Response(status_code=204)
+
+
+@router.delete("/products/{product_id}/images/{image_id}", status_code=204)
+def delete_product_image(
+    product_id: int,
+    image_id: int,
+    user: CurrentUser,
+    db: DbSession,
+    request: Request,
+    _: Annotated[None, Depends(check_origin)],
+):
+    product = owned_product(product_id, user, db)
+    image = db.scalar(
+        select(ProductImage)
+        .where(ProductImage.id == image_id, ProductImage.product_id == product.id)
+        .with_for_update()
+    )
+    if image is None:
+        raise HTTPException(status_code=404, detail="Image not found")
+    storage = get_storage(request)
+    try:
+        storage.remove(image.storage_key)
+    except StorageError:
+        raise HTTPException(
+            status_code=502, detail="Image storage unavailable"
+        ) from None
+    db.delete(image)
+    db.commit()
+    return Response(status_code=204)

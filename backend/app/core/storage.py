@@ -7,7 +7,11 @@ from app.core.config import Settings
 
 
 class StorageError(Exception):
-    pass
+    def __init__(
+        self, message: str = "Storage operation failed", *, missing_object: bool = False
+    ):
+        super().__init__(message)
+        self.missing_object = missing_object
 
 
 class StorageClient:
@@ -51,8 +55,17 @@ class StorageClient:
                 )
                 response.raise_for_status()
                 return response
+        except httpx.HTTPStatusError as exc:
+            missing = False
+            if exc.response.status_code == 404:
+                try:
+                    body = exc.response.json()
+                    missing = isinstance(body, dict) and body.get("code") == "NoSuchKey"
+                except ValueError:
+                    pass
+            raise StorageError(missing_object=missing) from None
         except httpx.HTTPError:
-            raise StorageError("Storage operation failed") from None
+            raise StorageError() from None
 
     def upload(self, key: str, data: bytes, content_type: str):
         try:
@@ -71,7 +84,11 @@ class StorageClient:
             raise StorageError("Storage operation failed") from None
 
     def remove(self, key: str):
-        self.call("DELETE", f"/object/{self.bucket}", json={"prefixes": [key]})
+        try:
+            self.call("DELETE", f"/object/{self.bucket}", json={"prefixes": [key]})
+        except StorageError as exc:
+            if not exc.missing_object:
+                raise
 
     def signed_url(self, key: str):
         response = self.call(

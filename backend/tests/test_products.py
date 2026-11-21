@@ -144,3 +144,130 @@ def test_create_response_documentation_example(client):
         "application/json"
     ]["example"]
     assert ProductResponse.model_validate(example).price == 1250
+
+
+def test_product_lifecycle_and_seller_isolation(client):
+    client, engine = client
+    login_as(client, "one@example.com")
+    original = client.post(
+        "/products",
+        json={
+            "name": "Original",
+            "category": "Books",
+            "price": "15.50",
+            "description": "Old description",
+            "features": ["one"],
+            "warranty": "Year",
+            "delivery_info": "Courier",
+            "return_policy": "Week",
+        },
+        headers=ORIGIN,
+    ).json()
+    product_id = original["id"]
+    path = f"/products/{product_id}"
+    for patch in (
+        {"name": "   "},
+        {"category": None},
+        {"price": "-1"},
+        {"price": None},
+        {"features": None},
+        {"status": None},
+        {"status": "deleted"},
+        {"seller_id": 999},
+        {"updated_at": "2020-01-01T00:00:00Z"},
+    ):
+        assert client.patch(path, json=patch, headers=ORIGIN).status_code == 422
+    edited = client.patch(
+        path,
+        json={"name": " Updated ", "price": "20.25", "description": None},
+        headers=ORIGIN,
+    )
+    assert edited.status_code == 200
+    assert edited.json()["name"] == "Updated"
+    assert edited.json()["description"] is None
+    assert edited.json()["category"] == "Books"
+    assert edited.json()["features"] == ["one"]
+    assert (
+        client.patch(path, json={"status": "archived"}, headers=ORIGIN).json()["status"]
+        == "archived"
+    )
+    assert client.get("/products").json() == []
+    assert [x["id"] for x in client.get("/products?status=archived").json()] == [
+        product_id
+    ]
+    assert client.get("/products?status=invalid").status_code == 422
+    duplicate = client.post(path + "/duplicate", headers=ORIGIN)
+    assert duplicate.status_code == 201
+    copy = duplicate.json()
+    assert copy["id"] != product_id
+    assert copy["seller_id"] == original["seller_id"]
+    assert copy["status"] == "active"
+    for key in (
+        "name",
+        "category",
+        "price",
+        "description",
+        "features",
+        "warranty",
+        "delivery_info",
+        "return_policy",
+        "currency",
+    ):
+        assert copy[key] == edited.json()[key]
+    assert client.get(f"/products/{copy['id']}").json()["images"] == []
+    assert (
+        client.patch(path, json={"status": "active"}, headers=ORIGIN).json()["status"]
+        == "active"
+    )
+    assert client.get("/products?status=archived").json() == []
+    assert client.delete(path, headers=ORIGIN).status_code == 204
+    assert client.get(path).status_code == 404
+    assert client.patch(path, json={"name": "x"}, headers=ORIGIN).status_code == 404
+    assert client.post(path + "/duplicate", headers=ORIGIN).status_code == 404
+    assert client.delete(path, headers=ORIGIN).status_code == 404
+    with engine.connect() as conn:
+        product = conn.execute(
+            Product.__table__.select().where(Product.id == product_id)
+        ).first()
+        assert product is not None and product.deleted_at is not None
+    login_as(client, "two@example.com")
+    other = f"/products/{copy['id']}"
+    assert client.get(other).status_code == 404
+    assert (
+        client.patch(other, json={"name": "stolen"}, headers=ORIGIN).status_code == 404
+    )
+    assert client.post(other + "/duplicate", headers=ORIGIN).status_code == 404
+    assert client.delete(other, headers=ORIGIN).status_code == 404
+
+
+def test_new_product_mutations_require_auth_and_origin(client):
+    client, _ = client
+    for method, path in (
+        ("patch", "/products/1"),
+        ("post", "/products/1/duplicate"),
+        ("delete", "/products/1"),
+        ("delete", "/products/1/images/1"),
+    ):
+        kwargs = {"json": {"name": "x"}} if method == "patch" else {}
+        assert (
+            getattr(client, method)(path, headers=ORIGIN, **kwargs).status_code == 401
+        )
+    login_as(client, "one@example.com")
+    product_id = client.post(
+        "/products",
+        json={"name": "Item", "category": "Food", "price": 1},
+        headers=ORIGIN,
+    ).json()["id"]
+    for method, path in (
+        ("patch", f"/products/{product_id}"),
+        ("post", f"/products/{product_id}/duplicate"),
+        ("delete", f"/products/{product_id}"),
+        ("delete", f"/products/{product_id}/images/1"),
+    ):
+        kwargs = {"json": {"name": "x"}} if method == "patch" else {}
+        assert (
+            getattr(client, method)(
+                path, headers={"Origin": "https://evil.example"}, **kwargs
+            ).status_code
+            == 403
+        )

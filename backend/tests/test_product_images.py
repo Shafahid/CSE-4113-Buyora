@@ -196,3 +196,111 @@ def test_missing_session_csrf_and_deleted_product(setup):
     assert client.post(path, files=image, headers=ORIGIN).status_code == 404
     assert client.get(f"/products/{product_id}").status_code == 404
     assert storage.objects == {}
+
+
+def test_remove_image_and_preserve_images_on_soft_delete(setup):
+    client, engine, storage = setup
+    login(client, "one@example.com")
+    product_id = make_product(client)
+    image = client.post(
+        f"/products/{product_id}/images",
+        files={"file": ("a.png", image_bytes(), "image/png")},
+        headers=ORIGIN,
+    ).json()
+    image_id = image["id"]
+    other_product = make_product(client)
+    assert (
+        client.delete(
+            f"/products/{other_product}/images/{image_id}", headers=ORIGIN
+        ).status_code
+        == 404
+    )
+    assert (
+        client.delete(
+            f"/products/{product_id}/images/{image_id}", headers=ORIGIN
+        ).status_code
+        == 204
+    )
+    assert len(storage.removed) == 1
+    with engine.connect() as conn:
+        assert (
+            conn.execute(
+                select(ProductImage).where(ProductImage.id == image_id)
+            ).first()
+            is None
+        )
+    assert (
+        client.delete(
+            f"/products/{product_id}/images/{image_id}", headers=ORIGIN
+        ).status_code
+        == 404
+    )
+    image2 = client.post(
+        f"/products/{product_id}/images",
+        files={"file": ("a.png", image_bytes(), "image/png")},
+        headers=ORIGIN,
+    ).json()
+    assert client.delete(f"/products/{product_id}", headers=ORIGIN).status_code == 204
+    with engine.connect() as conn:
+        assert (
+            conn.execute(
+                select(ProductImage).where(ProductImage.id == image2["id"])
+            ).first()
+            is not None
+        )
+    assert len(storage.objects) == 1
+
+
+def test_remove_failure_keeps_image_row_and_cross_seller_denied(setup, monkeypatch):
+    client, engine, storage = setup
+    login(client, "one@example.com")
+    product_id = make_product(client)
+    image = client.post(
+        f"/products/{product_id}/images",
+        files={"file": ("a.png", image_bytes(), "image/png")},
+        headers=ORIGIN,
+    ).json()
+    path = f"/products/{product_id}/images/{image['id']}"
+    old_cookie = client.cookies.get("buyora_session")
+    login(client, "two@example.com")
+    assert client.delete(path, headers=ORIGIN).status_code == 404
+    client.cookies.set(
+        "buyora_session", old_cookie, domain="testserver.local", path="/"
+    )
+
+    def fail(key):
+        raise StorageError()
+
+    monkeypatch.setattr(storage, "remove", fail)
+    assert client.delete(path, headers=ORIGIN).status_code == 502
+    with engine.connect() as conn:
+        assert (
+            conn.execute(
+                select(ProductImage).where(ProductImage.id == image["id"])
+            ).first()
+            is not None
+        )
+
+
+def test_duplicate_copies_details_without_copying_images(setup):
+    client, engine, storage = setup
+    login(client, "one@example.com")
+    product_id = make_product(client)
+    image = client.post(
+        f"/products/{product_id}/images",
+        files={"file": ("a.png", image_bytes(), "image/png")},
+        headers=ORIGIN,
+    ).json()
+    duplicate = client.post(f"/products/{product_id}/duplicate", headers=ORIGIN)
+    assert duplicate.status_code == 201
+    copy_id = duplicate.json()["id"]
+    assert client.get(f"/products/{copy_id}").json()["images"] == []
+    assert len(client.get(f"/products/{product_id}").json()["images"]) == 1
+    with engine.connect() as conn:
+        assert (
+            conn.execute(
+                select(ProductImage.product_id).where(ProductImage.id == image["id"])
+            ).scalar_one()
+            == product_id
+        )
+    assert len(storage.objects) == 1

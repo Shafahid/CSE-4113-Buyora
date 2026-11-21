@@ -227,3 +227,16 @@ Expect 201 for upload and a product response containing signed URLs. Verify a
 URL opens before expiry, the object exists in the private bucket, and the row in
 public.product_images contains the object key. Another seller receives 404.
 These commands modify the configured database and bucket.
+
+
+### Product management
+
+Authenticated sellers can PATCH /products/{id} to change supplied fields or
+set status to active or archived. Null clears optional descriptive fields;
+required fields and features cannot be null. GET /products defaults to active;
+pass ?status=archived to list archived products. POST /products/{id}/duplicate
+creates an active copy of product details without copying images.
+DELETE /products/{id} soft-deletes the product and retains its linked data.
+DELETE /products/{id}/images/{image_id} removes an image from Storage and the
+database; a Storage failure keeps its row so deletion can be retried. All
+mutating requests require an Origin allowed by CORS_ORIGINS.
