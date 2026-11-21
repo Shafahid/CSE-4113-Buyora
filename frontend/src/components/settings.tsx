@@ -2,6 +2,8 @@
 import { useState, type FormEvent } from "react";
 import Link from "next/link";
 import { download, resetDemo, updateDemo, useDemo } from "@/lib/store";
+import { AuthError, logout } from "@/lib/auth-api";
+import { useRouter } from "next/navigation";
 import {
   Badge,
   Field,
@@ -15,6 +17,8 @@ import {
 
 export function Settings() {
   const state = useDemo();
+  const router = useRouter();
+  const [signingOut, setSigningOut] = useState(false);
   const toast = useToast();
   const [name, setName] = useState<string | null>(null);
   const [email, setEmail] = useState<string | null>(null);
@@ -46,15 +50,16 @@ export function Settings() {
           <div className="panel-heading">
             <div>
               <h2>Your profile</h2>
-              <p>Personalize this local demo workspace.</p>
+              <p>{state.signedIn ? "Your account details." : "Personalize this local demo workspace."}</p>
             </div>
-            <Badge tone="blue">Demo account</Badge>
+            <Badge tone="blue">{state.signedIn ? "Account" : "Demo workspace"}</Badge>
           </div>
           <form onSubmit={save}>
             <div className="form-grid">
               <Field label="Your name">
                 <input
                   required
+                  disabled={state.signedIn}
                   maxLength={80}
                   value={name ?? state.profile.name}
                   onChange={(e) => setName(e.target.value)}
@@ -63,6 +68,7 @@ export function Settings() {
               <Field label="Email address">
                 <input
                   required
+                  disabled={state.signedIn}
                   type="email"
                   maxLength={180}
                   value={email ?? state.profile.email}
@@ -75,9 +81,7 @@ export function Settings() {
                 {error}
               </p>
             )}
-            <button className="button primary" type="submit">
-              Save profile
-            </button>
+            {!state.signedIn && <button className="button primary" type="submit">Save profile</button>}
           </form>
           <div className="settings-row">
             <div>
@@ -88,19 +92,28 @@ export function Settings() {
           </div>
           <div className="settings-row">
             <div>
-              <h3>Demo session</h3>
+              <h3>Session</h3>
               <p>
                 {state.signedIn
-                  ? "You are signed in to a local demo session."
+                  ? "You are signed in to your account."
                   : "You are exploring without signing in."}
               </p>
             </div>
             {state.signedIn ? (
               <button
                 className="button secondary small-button"
-                onClick={() => {
-                  updateDemo((s) => ({ ...s, signedIn: false }));
-                  toast("Signed out of demo session");
+                disabled={signingOut}
+                onClick={async () => {
+                  setSigningOut(true);
+                  try {
+                    await logout();
+                    updateDemo((s) => ({ ...s, signedIn: false }));
+                    router.push("/login");
+                  } catch (err) {
+                    setError(err instanceof AuthError ? err.message : "Could not sign out.");
+                  } finally {
+                    setSigningOut(false);
+                  }
                 }}
               >
                 Sign out
@@ -163,9 +176,8 @@ export function Settings() {
         </section>
       </div>
       <Notice>
-        Authentication, password recovery, AI generation, and server
-        synchronization are frontend demonstrations. They will need backend
-        integration before real use. No passwords are stored.
+        Products, drafts, and reports are stored in this browser. Password
+        recovery and AI generation are demonstrations.
       </Notice>
       {reset && (
         <Modal
@@ -187,7 +199,9 @@ export function Settings() {
             <button
               className="button danger"
               onClick={() => {
+                const { signedIn, profile } = state;
                 resetDemo();
+                if (signedIn) updateDemo((s) => ({ ...s, signedIn, profile }));
                 setName(null);
                 setEmail(null);
                 setReset(false);

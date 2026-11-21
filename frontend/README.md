@@ -2,7 +2,7 @@
 
 Buyora helps Bangladeshi social commerce sellers explore simulated buyer reactions before publishing or boosting a promotional post. This directory contains the public landing page, workspace, product/post editors, simulation flow, reports, and account screens.
 
-**Current status: frontend demonstration with browser-local persistence.** There are no API requests, server-backed accounts, AI calls, or database integration in this frontend. The workspace is accessible without authentication. Proposed integration contracts below describe future work, not existing endpoints.
+**Current status:** Login, registration, session restoration, and logout use the FastAPI backend. Products, drafts, and reports remain browser-local demo data. The workspace can also be explored without signing in.
 
 ## Stack and setup
 
@@ -24,7 +24,7 @@ npm ci --cache .npm-cache --no-audit --no-fund
 npm run dev
 ```
 
-Open `http://localhost:3000`. Seed data is available immediately. No `.env` file, API key, backend process, or account is required. The project-local npm cache is ignored by Git.
+Open `http://localhost:3000`. Seed data is available immediately. No account is required to explore the demo; authentication requires the backend. The project-local npm cache is ignored by Git.
 
 | Command             | Purpose                                        |
 | ------------------- | ---------------------------------------------- |
@@ -279,3 +279,7 @@ No graph endpoint is required to retain the existing visualization with compatib
 - **Connect the frontend:** Replace browser-local demo operations with API calls and real loading, error, authentication, and progress handling.
 - **Test the backend:** Cover ownership, validation, scoring, simulation jobs, retries, snapshot integrity, and database migrations.
 - **Prepare deployment:** Configure secrets, CORS, database connections, worker processes, logging, health checks, backups, rate limits, and AI usage limits.
+
+## Authentication setup
+
+The frontend calls http://localhost:8000 by default. Set NEXT_PUBLIC_API_URL in .env.local to change it, then restart Next.js. Start the backend and include the exact frontend origin in CORS_ORIGINS. Use the same localhost hostname for both servers and credentials are included in authentication requests. Use HTTPS and secure cookies in deployment.

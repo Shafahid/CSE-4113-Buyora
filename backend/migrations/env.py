@@ -16,9 +16,12 @@ target_metadata = Base.metadata
 def include_name(name: str | None, type_: str, parent_names: dict) -> bool:
     """Never autogenerate changes to Supabase or other unmanaged tables."""
     if type_ == "schema":
-        return name == target_metadata.schema
+        return name in (None, "public", target_metadata.schema)
     if type_ == "table":
-        return parent_names["schema_qualified_table_name"] in target_metadata.tables
+        qualified = parent_names["schema_qualified_table_name"]
+        if "." not in qualified:
+            qualified = f"public.{qualified}"
+        return qualified in target_metadata.tables
     return True
 
 

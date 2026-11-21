@@ -1,5 +1,4 @@
-"""Import each ORM model here so Alembic discovers it through Base.metadata."""
-
 from app.db.base import Base
+from app.models.auth import AuthSession, User, UserProfile
 
-__all__ = ["Base"]
+__all__ = ["AuthSession", "Base", "User", "UserProfile"]

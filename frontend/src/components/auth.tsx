@@ -1,31 +1,57 @@
 "use client";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, useSyncExternalStore, type FormEvent } from "react";
 import { updateDemo } from "@/lib/store";
-import { Avatar, Brand, Field, Icon, ThemeToggle } from "./ui";
-import { personas } from "@/lib/demo-data";
+import { Brand, Field, Icon, ThemeToggle } from "./ui";
+import { AuthError, login, register } from "@/lib/auth-api";
 
 export function Auth({ mode }: { mode: "login" | "register" | "forgot" }) {
   const router = useRouter();
+  const ready = useSyncExternalStore(() => () => {}, () => true, () => false);
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    if (url.searchParams.has("password") || url.searchParams.has("email")) {
+      url.searchParams.delete("password");
+      url.searchParams.delete("email");
+      window.history.replaceState(window.history.state, "", url.pathname + url.search + url.hash);
+    }
+  }, []);
   const [show, setShow] = useState(false);
   const [sent, setSent] = useState(false);
   const [error, setError] = useState("");
-  function submit(e: FormEvent<HTMLFormElement>) {
+  const [pending, setPending] = useState(false);
+  async function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const data = new FormData(e.currentTarget);
-    const email = String(data.get("email")).trim();
-    const name = String(data.get("name") || email.split("@")[0]).trim();
+    const email = String(data.get("email") || "").trim();
+    const name = String(data.get("name") || "").trim();
+    const password = String(data.get("password") || "");
+    setError("");
     if (mode === "forgot") {
       setSent(true);
       return;
     }
-    if (!name) {
+    if (mode === "register" && !name) {
       setError("Please enter your name.");
       return;
     }
-    updateDemo((s) => ({ ...s, signedIn: true, profile: { name, email } }));
-    router.push("/dashboard");
+    setPending(true);
+    let registered = false;
+    try {
+      if (mode === "register") {
+        await register(email, password, name);
+        registered = true;
+      }
+      const user = await login(email, password);
+      updateDemo((s) => ({ ...s, signedIn: true, profile: { name: user.display_name, email: user.email } }));
+      router.push("/dashboard");
+    } catch (err) {
+      const message = err instanceof AuthError ? err.message : "Something went wrong. Please try again.";
+      setError(registered ? "Your account was created, but sign in failed. Please sign in from the login page." : message);
+    } finally {
+      setPending(false);
+    }
   }
   return (
     <div className="auth-page">
@@ -96,7 +122,8 @@ export function Auth({ mode }: { mode: "login" | "register" | "forgot" }) {
               </Link>
             </div>
           ) : (
-            <form onSubmit={submit}>
+            <form method="post" onSubmit={submit}>
+              <noscript>Enable JavaScript to sign in securely.</noscript>
               {mode === "register" && (
                 <Field label="Your name">
                   <input
@@ -127,9 +154,9 @@ export function Auth({ mode }: { mode: "login" | "register" | "forgot" }) {
                     <input
                       name="password"
                       type={show ? "text" : "password"}
-                      minLength={8}
+                      minLength={mode === "register" ? 8 : 1}
                       required
-                      autoComplete="off"
+                      autoComplete={mode === "register" ? "new-password" : "current-password"}
                       placeholder="At least 8 characters"
                     />
                     <button
@@ -153,8 +180,8 @@ export function Auth({ mode }: { mode: "login" | "register" | "forgot" }) {
                   {error}
                 </p>
               )}
-              <button className="button primary auth-submit">
-                {mode === "register"
+              <button type="submit" className="button primary auth-submit" disabled={!ready || pending}>
+                {pending ? "Please wait?" : mode === "register"
                   ? "Create account"
                   : mode === "forgot"
                     ? "Preview password recovery"
