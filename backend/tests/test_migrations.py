@@ -105,3 +105,14 @@ def test_post_migration_reuses_existing_tables_and_rejects_partial(monkeypatch):
     inspector.has_table.side_effect = [False, False]
     migration.upgrade()
     create.assert_called_once()
+
+
+def test_auth_migration_accepts_postgresql_reflected_email_index():
+    from runpy import run_path
+
+    migration = run_path(str(BACKEND_DIR / "migrations/versions/0002_auth.py"))
+    check = migration["is_lower_email_index"]
+    assert check({"unique": True, "expressions": ["lower(email)"]})
+    assert check({"unique": True, "expressions": ["lower(email::text)"]})
+    assert not check({"unique": False, "expressions": ["lower(email::text)"]})
+    assert not check({"unique": True, "expressions": ["lower(other::text)"]})

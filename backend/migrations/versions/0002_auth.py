@@ -76,6 +76,18 @@ def create_tables():
     )
 
 
+def is_lower_email_index(index):
+    expressions = [
+        expression.lower().replace(" ", "")
+        for expression in index.get("expressions", [])
+        if expression
+    ]
+    return bool(index.get("unique")) and expressions in (
+        ["lower(email)"],
+        ["lower(email::text)"],
+    )
+
+
 def validate_existing(inspector):
     expected = {
         "users": {
@@ -142,12 +154,7 @@ def validate_existing(inspector):
         ):
             raise RuntimeError(f"public.{table} must reference public.users")
     indexes = inspector.get_indexes("users", schema="public")
-    if not any(
-        i["unique"]
-        and [x.lower().replace(" ", "") for x in i.get("expressions", []) if x]
-        == ["lower(email)"]
-        for i in indexes
-    ):
+    if not any(is_lower_email_index(i) for i in indexes):
         raise RuntimeError("public.users needs a unique index on lower(email)")
     indexes = inspector.get_indexes("auth_sessions", schema="public")
     uniques = inspector.get_unique_constraints("auth_sessions", schema="public")
