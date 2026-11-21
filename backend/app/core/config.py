@@ -39,6 +39,9 @@ class Settings(BaseSettings):
     database_url: SecretStr
     migration_database_url: SecretStr | None = None
     cors_origins: list[str] = ["http://localhost:3000", "http://127.0.0.1:3000"]
+    supabase_url: str | None = None
+    supabase_secret_key: SecretStr | None = None
+    supabase_storage_bucket: str | None = None
     session_cookie_name: str = "buyora_session"
     session_cookie_secure: bool = False
     session_cookie_samesite: Literal["lax", "strict", "none"] = "lax"

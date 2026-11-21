@@ -1,13 +1,27 @@
+import io
+import logging
+import uuid
+import warnings
 from decimal import Decimal
 from typing import Annotated
 
-from fastapi import APIRouter, Depends
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    HTTPException,
+    Request,
+    Response,
+    UploadFile,
+)
+from PIL import Image, UnidentifiedImageError
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from sqlalchemy import select
 
 from app.api.routes.auth import check_origin, get_current_user
+from app.core.storage import StorageClient, StorageError, get_storage
 from app.db.session import DbSession
-from app.models import Product, User
+from app.models import Product, ProductImage, User
 
 router = APIRouter(tags=["products"])
 CurrentUser = Annotated[User, Depends(get_current_user)]
@@ -126,4 +140,146 @@ def list_products(user: CurrentUser, db: DbSession):
             )
             .order_by(Product.id)
         )
+    )
+
+
+MAX_IMAGE_BYTES = 5 * 1024 * 1024
+FORMATS = {
+    "JPEG": ("jpg", "image/jpeg"),
+    "PNG": ("png", "image/png"),
+    "WEBP": ("webp", "image/webp"),
+}
+logger = logging.getLogger(__name__)
+Storage = Annotated[StorageClient, Depends(get_storage)]
+
+
+class ImageCreated(BaseModel):
+    id: int
+    product_id: int
+    sort_order: int
+
+
+class ImageResponse(BaseModel):
+    id: int
+    sort_order: int
+    url: str
+
+
+class ProductDetail(ProductResponse):
+    images: list[ImageResponse]
+
+
+def owned_product(product_id: int, user: User, db: DbSession) -> Product:
+    product = db.scalar(
+        select(Product).where(
+            Product.id == product_id,
+            Product.seller_id == user.id,
+            Product.deleted_at.is_(None),
+        )
+    )
+    if product is None:
+        raise HTTPException(status_code=404, detail="Product not found")
+    return product
+
+
+def validate_image(data: bytes):
+    try:
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", Image.DecompressionBombWarning)
+            with Image.open(io.BytesIO(data), formats=list(FORMATS)) as image:
+                image_format = image.format
+                image.verify()
+            with Image.open(io.BytesIO(data), formats=list(FORMATS)) as image:
+                image.load()
+        if image_format not in FORMATS:
+            raise ValueError("Unsupported image format")
+        return FORMATS[image_format]
+    except (
+        UnidentifiedImageError,
+        OSError,
+        ValueError,
+        Image.DecompressionBombError,
+        Image.DecompressionBombWarning,
+    ):
+        raise HTTPException(
+            status_code=422, detail="Invalid or unsupported image"
+        ) from None
+
+
+@router.post(
+    "/products/{product_id}/images", status_code=201, response_model=ImageCreated
+)
+def upload_product_image(
+    product_id: int,
+    user: CurrentUser,
+    db: DbSession,
+    _: Annotated[None, Depends(check_origin)],
+    file: Annotated[UploadFile, File()],
+    storage: Storage,
+):
+    product = owned_product(product_id, user, db)
+    data = file.file.read(MAX_IMAGE_BYTES + 1)
+    if len(data) > MAX_IMAGE_BYTES:
+        raise HTTPException(status_code=413, detail="Image exceeds 5 MB")
+    extension, content_type = validate_image(data)
+    key = f"products/{product.id}/{uuid.uuid4().hex}.{extension}"
+    try:
+        storage.upload(key, data, content_type)
+    except StorageError:
+        raise HTTPException(
+            status_code=502, detail="Image storage unavailable"
+        ) from None
+    image = ProductImage(product_id=product.id, storage_key=key)
+    try:
+        db.add(image)
+        db.flush()
+        result = ImageCreated(
+            id=image.id, product_id=image.product_id, sort_order=image.sort_order
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
+        try:
+            storage.remove(key)
+        except Exception:
+            logger.error("Could not remove an orphaned product image")
+        raise
+    return result
+
+
+@router.get("/products/{product_id}", response_model=ProductDetail)
+def get_product(
+    product_id: int,
+    user: CurrentUser,
+    db: DbSession,
+    response: Response,
+    request: Request,
+):
+    product = owned_product(product_id, user, db)
+    images = list(
+        db.scalars(
+            select(ProductImage)
+            .where(ProductImage.product_id == product.id)
+            .order_by(ProductImage.sort_order, ProductImage.id)
+        )
+    )
+    signed_images = []
+    if images:
+        storage = get_storage(request)
+        try:
+            signed_images = [
+                ImageResponse(
+                    id=image.id,
+                    sort_order=image.sort_order,
+                    url=storage.signed_url(image.storage_key),
+                )
+                for image in images
+            ]
+        except StorageError:
+            raise HTTPException(
+                status_code=502, detail="Image storage unavailable"
+            ) from None
+    response.headers["Cache-Control"] = "private, no-store"
+    return ProductDetail(
+        **ProductResponse.model_validate(product).model_dump(), images=signed_images
     )

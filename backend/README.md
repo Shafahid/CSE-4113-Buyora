@@ -184,3 +184,46 @@ table's columns and keys without replacing it. Its downgrade deliberately
 requires manual review because the table may predate the migration. Test
 the revision on an isolated PostgreSQL database before applying it to a
 shared database, and back up existing data.
+
+
+## Product image uploads
+
+Configure the following in backend/.env (never expose the secret to the browser
+or commit it): SUPABASE_URL, SUPABASE_SECRET_KEY, and SUPABASE_STORAGE_BUCKET.
+Use the project URL, a backend-only Supabase secret key, and the name of an
+existing **private** bucket. Set appropriate bucket MIME and size restrictions.
+Image downloads use signed URLs that expire after five minutes.
+
+Revision 0004 checks and reuses public.product_images if present, or creates it
+if absent. Back up and test all migrations on an isolated PostgreSQL database
+before applying them to a shared database. The backend does not create or alter
+buckets. A failed database insert triggers a best-effort object deletion; monitor
+backend logs and reconcile storage if cleanup fails.
+
+Real upload test using PowerShell 7 (use a development project and private
+bucket). After testing the migration in an isolated database, apply it only to
+your intended development database:
+
+    cd E:\CSE-4113-Buyora\backend
+    uv sync --locked
+    uv run alembic upgrade head
+    uv run uvicorn main:app --reload
+
+In another PowerShell 7 terminal, enter your seller email and password at the
+credential prompt. Replace the product ID and path with an existing product owned
+by that seller and a real local image:
+
+    $credentials = Get-Credential -Message "Enter your Buyora seller credentials"
+    $origin = @{ Origin = "http://localhost:3000" }
+    $body = @{ email = $credentials.UserName; password = $credentials.GetNetworkCredential().Password } | ConvertTo-Json
+    Invoke-RestMethod -Method Post -Uri "http://localhost:8000/auth/login" -Headers $origin -ContentType "application/json" -Body $body -SessionVariable session
+    $productId = 1
+    $imageFile = Get-Item "C:\path\to\your-image.png"
+    Invoke-RestMethod -Method Post -Uri "http://localhost:8000/products/$productId/images" -Headers $origin -Form @{ file = $imageFile } -WebSession $session
+    Invoke-RestMethod -Method Get -Uri "http://localhost:8000/products/$productId" -WebSession $session
+    Remove-Variable body,credentials
+
+Expect 201 for upload and a product response containing signed URLs. Verify a
+URL opens before expiry, the object exists in the private bucket, and the row in
+public.product_images contains the object key. Another seller receives 404.
+These commands modify the configured database and bucket.

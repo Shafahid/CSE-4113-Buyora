@@ -6,7 +6,14 @@ from app.core.config import Settings
 @pytest.fixture(autouse=True)
 def isolated_environment(monkeypatch: pytest.MonkeyPatch) -> None:
     """Tests must never read credentials from a developer's environment or .env."""
-    for name in ("DATABASE_URL", "MIGRATION_DATABASE_URL", "CORS_ORIGINS"):
+    for name in (
+        "DATABASE_URL",
+        "MIGRATION_DATABASE_URL",
+        "CORS_ORIGINS",
+        "SUPABASE_URL",
+        "SUPABASE_SECRET_KEY",
+        "SUPABASE_STORAGE_BUCKET",
+    ):
         monkeypatch.delenv(name, raising=False)
     monkeypatch.setitem(Settings.model_config, "env_file", None)
 
