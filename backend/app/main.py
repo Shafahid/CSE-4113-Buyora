@@ -9,6 +9,7 @@ from app.api.router import api_router
 from app.api.routes.auth import router as auth_router
 from app.api.routes.posts import router as posts_router
 from app.api.routes.products import router as products_router
+from app.api.routes.simulations import router as simulations_router
 from app.core.config import Settings
 from app.db.session import create_db_engine
 
@@ -33,6 +34,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     application.include_router(auth_router)
     application.include_router(products_router)
     application.include_router(posts_router)
+    application.include_router(simulations_router)
     application.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,

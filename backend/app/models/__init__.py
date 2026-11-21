@@ -3,6 +3,7 @@ from app.models.auth import AuthSession, User, UserProfile
 from app.models.post import Post, PostVersion
 from app.models.product import Product
 from app.models.product_image import ProductImage
+from app.models.simulation import Simulation
 
 __all__ = [
     "AuthSession",
@@ -13,4 +14,5 @@ __all__ = [
     "ProductImage",
     "Post",
     "PostVersion",
+    "Simulation",
 ]
