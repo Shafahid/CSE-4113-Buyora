@@ -74,3 +74,13 @@ def test_local_database_can_explicitly_disable_ssl() -> None:
         database_url="postgresql://postgres:secret@localhost/postgres?sslmode=disable",
     )
     assert settings.sqlalchemy_url.query["sslmode"] == "disable"
+
+
+def test_example_environment_has_valid_cookie_defaults():
+    example = Path(__file__).resolve().parents[1] / ".env.example"
+    settings = Settings(_env_file=example)
+    assert settings.session_cookie_name == "buyora_session"
+    assert settings.session_cookie_secure is False
+    assert settings.session_cookie_samesite == "lax"
+    assert settings.session_lifetime_seconds == 604800
+    assert settings.supabase_secret_key is None

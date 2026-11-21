@@ -1,7 +1,7 @@
 "use client";
 import { useState, type FormEvent } from "react";
 import Link from "next/link";
-import { download, resetDemo, updateDemo, useDemo } from "@/lib/store";
+import { download, resetDemo, updateDemo, useDemo, clearSession } from "@/lib/store";
 import { AuthError, logout } from "@/lib/auth-api";
 import { useRouter } from "next/navigation";
 import {
@@ -107,8 +107,8 @@ export function Settings() {
                   setSigningOut(true);
                   try {
                     await logout();
-                    updateDemo((s) => ({ ...s, signedIn: false }));
-                    router.push("/login");
+                    clearSession();
+                    router.replace("/login");
                   } catch (err) {
                     setError(err instanceof AuthError ? err.message : "Could not sign out.");
                   } finally {
@@ -129,7 +129,7 @@ export function Settings() {
           <div className="panel-heading">
             <div>
               <h2>Your workspace data</h2>
-              <p>Products, drafts, and reports live in this browser.</p>
+              <p>Products and posts are saved to your account. Simulation previews remain in this browser.</p>
             </div>
             <Icon name="shield" size={21} />
           </div>
@@ -157,37 +157,36 @@ export function Settings() {
             Export workspace
           </button>
           <Notice>
-            Browser storage is local to this device and profile. Clearing
-            browser data removes your demo workspace. Export a copy if you want
-            to keep it.
+            Clearing browser data removes local simulation drafts and demo reports.
+            Your server products, images, and post versions are preserved.
           </Notice>
           <div className="settings-row">
             <div>
-              <h3>Start with fresh sample data</h3>
-              <p>Replace your changes with the original demo.</p>
+              <h3>Clear simulation previews</h3>
+              <p>Remove this account’s local draft and demo reports.</p>
             </div>
             <button
               className="button secondary small-button danger-text"
               onClick={() => setReset(true)}
             >
-              Reset demo
+              Clear previews
             </button>
           </div>
         </section>
       </div>
       <Notice>
-        Products, drafts, and reports are stored in this browser. Password
-        recovery and AI generation are demonstrations.
+        Profile updates and password recovery are pending backend support.
+        Simulation results, AI generation, and report exports are previews.
       </Notice>
       {reset && (
         <Modal
-          title="Reset this demo workspace?"
+          title="Clear local simulation previews?"
           onClose={() => setReset(false)}
         >
           <p>
-            Your products, post versions, drafts, and reports will be replaced
-            with the original sample data. Export your workspace first if you
-            want to keep a copy.
+            This removes this account’s local simulation draft and demo reports.
+            Export a copy first if needed. Products, images, and post versions
+            saved on the server are preserved.
           </p>
           <div className="modal-actions">
             <button
@@ -199,16 +198,14 @@ export function Settings() {
             <button
               className="button danger"
               onClick={() => {
-                const { signedIn, profile } = state;
                 resetDemo();
-                if (signedIn) updateDemo((s) => ({ ...s, signedIn, profile }));
                 setName(null);
                 setEmail(null);
                 setReset(false);
-                toast("Demo workspace reset");
+                toast("Local simulation previews cleared");
               }}
             >
-              Reset demo
+              Clear previews
             </button>
           </div>
         </Modal>

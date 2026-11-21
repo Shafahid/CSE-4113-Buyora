@@ -200,6 +200,7 @@ def validate_image(data: bytes):
     except (
         UnidentifiedImageError,
         OSError,
+        SyntaxError,
         ValueError,
         Image.DecompressionBombError,
         Image.DecompressionBombWarning,

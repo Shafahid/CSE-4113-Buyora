@@ -1,285 +1,90 @@
 # Buyora frontend
 
-Buyora helps Bangladeshi social commerce sellers explore simulated buyer reactions before publishing or boosting a promotional post. This directory contains the public landing page, workspace, product/post editors, simulation flow, reports, and account screens.
+Buyora helps Bangladeshi social commerce sellers explore buyer reactions before publishing a promotional post. Existing Next.js screens now partially integrate with the FastAPI backend.
 
-**Current status:** Login, registration, session restoration, and logout use the FastAPI backend. Products, drafts, and reports remain browser-local demo data. The workspace can also be explored without signing in.
+## Current integration
 
-## Stack and setup
+| Feature                                                    | Frontend                                                                | Backend                                                                                |
+| ---------------------------------------------------------- | ----------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| Registration, login, logout, current seller                | Connected; session loading, route guard and expiry handling             | Cookie sessions and seller profiles implemented                                        |
+| Products                                                   | Server reads; create, edit, duplicate, archive, restore and soft-delete | Implemented with ownership checks                                                      |
+| Product photos                                             | Multipart upload, signed previews and removal; up to 5 MB               | Private Storage integration implemented; requires bucket configuration                 |
+| Promotional posts                                          | Server reads, create, revise, full saved-version history and delete     | Immutable content versions implemented; deletion also removes linked simulation drafts |
+| Simulation drafts and personas                             | Browser-local setup; API wiring pending                                 | Draft and persona CRUD implemented                                                     |
+| Simulation execution, AI, scores and retries               | Explicit demo preview                                                   | Pending                                                                                |
+| Reports, history, comparisons and dashboard report metrics | Account-scoped local demo reports                                       | Report storage and APIs pending                                                        |
+| Profile updates and password recovery                      | Profile is read-only; recovery is a preview                             | Update/recovery endpoints pending                                                      |
 
-| Area        | Implementation                                                         |
-| ----------- | ---------------------------------------------------------------------- |
-| Framework   | Next.js 16.4.4, App Router                                             |
-| UI          | React 19.2.8, TypeScript with strict checking                          |
-| Styling     | Global CSS, CSS Modules, Tailwind CSS 4 tooling                        |
-| State       | React state and a custom `useSyncExternalStore` store                  |
-| Persistence | `localStorage`, with an in-memory fallback                             |
-| Graphics    | Inline SVG icons, product illustrations, score rings, and viewer graph |
-| Typography  | Local Aeonik files in `public/fonts/`                                  |
-| Tests       | Node test runner and the installed TypeScript compiler                 |
+Products and posts have no local demo fallback. Server failures show errors and retry controls. The public landing page still uses sample illustrations and reactions.
 
-Use Node.js **20.9 or newer**, as required by the installed Next.js package, and npm. From `frontend/`:
+## Run locally
 
-```sh
+Requires Node.js 20.9+ and the backend dependencies described in [backend/README.md](../backend/README.md).
+
+```powershell
+# From frontend/
 npm ci --cache .npm-cache --no-audit --no-fund
 npm run dev
 ```
 
-Open `http://localhost:3000`. Seed data is available immediately. No account is required to explore the demo; authentication requires the backend. The project-local npm cache is ignored by Git.
+Start FastAPI separately on port 8000 after configuring the backend and reviewing/applying its migrations. No migration is run by the frontend or the test fixture. Open `http://localhost:3000` and sign in or register. Workspace routes redirect to login when the API reports an unauthenticated session.
 
-| Command             | Purpose                                        |
-| ------------------- | ---------------------------------------------- |
-| `npm run dev`       | Development server                             |
-| `npm run lint`      | ESLint checks                                  |
-| `npm run test:demo` | Domain, persistence, workflow, and graph tests |
-| `npm run build`     | Production build and TypeScript checks         |
-| `npm start`         | Serve a completed production build             |
+The API base defaults to the browser's protocol and hostname on port 8000. For a different API location, add this to an ignored `frontend/.env.local`, then restart Next.js:
 
-Deployment currently needs a Next.js-compatible Node runtime; static export is not configured. `next.config.ts` has no API proxy or integration settings. The `@/` import alias resolves to `src/`.
-
-## Project structure
-
-```text
-frontend/
-|-- public/
-|   |-- fonts/                      Local Aeonik fonts
-|   |-- references/                 Design reference images
-|   |-- logo.png                    Brand asset
-|   |-- avatar-*.png                Buyer persona portraits
-|   |-- blue_bg.jpg                 Landing CTA background
-|   |-- signin_page_bg.jpg          Account-screen background
-|   `-- flowchart.jpg               Product flow reference
-|-- src/
-|   |-- app/
-|   |   |-- layout.tsx              Metadata, theme bootstrap, shared providers
-|   |   |-- page.tsx                Public landing page
-|   |   |-- globals.css             Theme, shared, responsive, and print styles
-|   |   |-- error.tsx               Route error boundary
-|   |   |-- not-found.tsx           Not-found screen
-|   |   |-- login/page.tsx
-|   |   |-- register/page.tsx
-|   |   |-- forgot-password/page.tsx
-|   |   `-- (workspace)/            Route group; absent from URL paths
-|   |       |-- layout.tsx          Shared workspace shell
-|   |       |-- dashboard/page.tsx
-|   |       |-- products/page.tsx
-|   |       |-- posts/page.tsx
-|   |       |-- simulate/page.tsx
-|   |       |-- reports/[id]/page.tsx
-|   |       |-- history/page.tsx
-|   |       |-- compare/page.tsx
-|   |       `-- settings/page.tsx
-|   |-- components/
-|   |   |-- workspace.tsx           Sidebar, navigation, profile, storage notice
-|   |   |-- ui.tsx                  Shared controls, modals, toasts, theme, art
-|   |   |-- dashboard.tsx           Overview metrics and recent reports
-|   |   |-- products.tsx            Product management and photo selection
-|   |   |-- posts.tsx               Post editor and caption history
-|   |   |-- simulation.tsx          Three-step simulation workflow
-|   |   |-- report.tsx              Report tabs, retries, revision, print/export
-|   |   |-- history.tsx             History and Compare components
-|   |   |-- auth.tsx                Login/register/recovery demonstrations
-|   |   |-- settings.tsx            Profile, session, export, demo reset
-|   |   |-- reaction-map.tsx        Interactive spread graph
-|   |   |-- reaction-map.module.css
-|   |   |-- count-up.tsx            Overview number and score-arc animation
-|   |   |-- landing-reveals.tsx     One-time viewport reveals and stagger groups
-|   |   |-- landing-reveals.module.css
-|   |   |-- landing-refinements.css Landing styles and circle hover rings
-|   |   |-- layout-adjustments.css Shared layout refinements
-|   |   |-- footer.tsx
-|   |   `-- footer.module.css
-|   `-- lib/
-|       |-- demo-data.ts            Types, fixtures, evaluation, report helpers
-|       |-- store.ts                Subscriptions, mutations, downloads
-|       |-- persistent-store.ts     Cached snapshots and storage recovery
-|       |-- persistence.ts          Runtime saved-data validation
-|       |-- workflow.ts             Workflow validation and compare selection
-|       |-- spread-simulation.ts    Deterministic viewer network and states
-|       |-- spread-playback.ts      Timeline timing and looping behavior
-|       `-- browser-preferences.ts  Reduced-motion and page-visibility hooks
-|-- tests/demo.test.mjs
-|-- next.config.ts
-|-- tsconfig.json
-|-- eslint.config.mjs
-|-- postcss.config.mjs
-|-- package.json
-`-- package-lock.json
+```dotenv
+NEXT_PUBLIC_API_URL=http://localhost:8000
 ```
 
-Assets in `public/` are served from `/`. Reference images are design inputs, not application data. `node_modules/`, `.next/`, `.npm-cache/`, and TypeScript build caches are generated files.
+Only public configuration belongs in `NEXT_PUBLIC_*` variables. Database credentials and Supabase secrets stay in `backend/.env`. Set backend `CORS_ORIGINS` to the exact frontend origin. Both servers should use the same hostname locally. HTTPS deployments need secure cookies; cross-site HTTPS also needs `SameSite=none`. Cookies are HttpOnly and every API call sends credentials. Browser requests supply Origin automatically.
 
-## Routes and implemented features
+The example backend environment now has valid local cookie defaults and placeholder database values. The previously committed credential-like values were removed from the example file. If they were genuine, the owner must rotate the database password; editing the file does not remove Git history or revoke credentials.
 
-| URL                         | Component      | Current behavior                                                                  |
-| --------------------------- | -------------- | --------------------------------------------------------------------------------- |
-| `/`                         | `app/page.tsx` | Hero, sample report preview, process steps, personas, CTA                         |
-| `/dashboard`                | `Dashboard`    | User greeting, report/product counts, average trust, latest/recent results        |
-| `/products`                 | `Products`     | Create, view, edit, duplicate, archive, restore, delete, search, choose photo     |
-| `/posts`                    | `Posts`        | Create/edit promotional posts, search, caption versions, start simulation         |
-| `/simulate`                 | `Simulation`   | Product/post, audience, editable personas, language, simulated progress           |
-| `/reports/[id]`             | `ReportView`   | Overview, audience insights, spread simulation, buyer comments, improve-post tabs |
-| `/reports/[id]?view=spread` | `ReportView`   | Open the spread simulation tab directly                                           |
-| `/history`                  | `History`      | Search report title/headline, filter platform, sort, delete reports               |
-| `/compare`                  | `Compare`      | Compare two fully completed reports and export dimension differences              |
-| `/settings`                 | `Settings`     | Profile, theme, local session, workspace export, demo reset                       |
-| `/login`, `/register`       | `Auth`         | Update local profile/session flag and open dashboard                              |
-| `/forgot-password`          | `Auth`         | Confirmation state only; no email is sent                                         |
+## API contract and state
 
-Route files mostly compose components; interactive screens are Client Components. The report route resolves asynchronous route/search parameters, then passes the ID to the client. Its report is looked up in browser state, not fetched on the server. Unknown IDs render an empty state.
+- `src/lib/api-schema.ts` is generated from the current FastAPI OpenAPI schemas. Regenerate from `backend/` with `uv run python scripts/export_frontend_contract.py`; this does not connect to the database.
+- `api-client.ts` handles cookies, JSON/multipart requests, timeouts, network failures, 204 responses and API errors. FastAPI 422 errors retain field paths; 401 responses invalidate the workspace session.
+- `auth-api.ts` and `catalog-api.ts` contain typed endpoint calls. Feature routes are `/auth/*`, `/me`, `/products/*` and `/posts/*`; only health uses `/api/v1`.
+- `api-adapters.ts` maps numeric server IDs to UI strings, decimal prices to numbers, features/hashtags to arrays, nulls to UI strings, and backend policy/CTA names to the existing controls.
+- `store.ts` loads seller-owned active and archived products, signed image details, posts and saved versions. Successful mutations update the shared snapshot used by all screens. Loading and session generations prevent an old account's results from entering a new account's workspace.
+- Saved post revisions contain all content fields. Any content change creates a server version; unchanged saves do not. Existing posts cannot move between products. Restoring history copies saved content into a new revision.
+- Product details and photos are separate API operations. If a photo fails after details save, the editor retains the saved product ID and reports partial success so retrying does not create another product. A network failure after a server commits but before its response arrives is inherently ambiguous; refresh before retrying a creation if unsure.
+- Product details supply image URLs that expire after five minutes. Workspace data refreshes on focus and every four minutes while visible. Duplication copies details without photos.
 
-## State and persistence
+`useDemo()` remains the existing screen-facing hook, but products/posts come from the server. `updateDemo()` can only change local simulation drafts and demo reports. Identity and server records cannot be replaced through this local updater.
 
-`DemoState` contains `version: 1`, `products`, `posts`, `reports`, `draft`, `profile: { name, email }`, and `signedIn`.
+Local previews use `buyora-account-v1:{sellerId}`. They are isolated by account and never import the old shared `buyora-workspace-v1` sample workspace. Signing out clears visible in-memory records. Clearing previews removes only the current account's local draft/reports; server products, images and versions remain. Account scoping prevents accidental mixing on shared browsers; local browser storage is not an access-control boundary against someone using the same browser profile.
 
-```text
-Screen -> useDemo() / useWorkspace() -> cached workspace snapshot
-Action -> updateDemo(updater) -> localStorage write -> subscriber notification
-Simulation -> makeReport() -> saved report -> /reports/{id}
+## Simulation preview boundaries
+
+Starting a demo simulation first saves its promotional post/version through the API, then generates illustrative reactions locally. Audience settings, selected personas and the resulting report remain browser-local until the simulation API integration is implemented. Demo retries, recommendations and revised-caption generation remain local; explicitly saving a revised caption creates a real server post version.
+
+The seven demo scores are Interest, Relevance, Value, Price fit, Trust, Clarity and Purchase intent, each from 0 to 100. Failed reactions are excluded from averages. Reports retain original product/post text snapshots. The spread visualization derives 60 fictional viewers over three rounds from completed reactions; it does not measure real reach or predict sales. Language options are English and Bangla; the interface remains English.
+
+## Routes and code
+
+Public routes: `/`, `/login`, `/register`, `/forgot-password`.
+
+Protected workspace routes: `/dashboard`, `/products`, `/posts`, `/simulate`, `/reports/[id]`, `/history`, `/compare`, `/settings`. The client guard controls screen visibility; backend session and ownership checks enforce access to server data.
+
+`src/app/` contains routes, `src/components/` contains the existing screens and shared UI, and `src/lib/` contains API/state/domain helpers. Styling remains in global CSS and CSS Modules with local Aeonik fonts. `demo-data.ts`, `workflow.ts`, `spread-simulation.ts` and `spread-playback.ts` support the remaining demo functionality.
+
+## Checks
+
+```powershell
+npm test
+npm run test:integration
+npm run lint
+npm run build
 ```
 
-- `useDemo()` returns data. `useWorkspace()` returns `{ data, error }` for screens that display storage errors.
-- `updateDemo()` accepts a synchronous immutable updater; it is not an async API client.
-- `createPersistentStore()` provides a stable server snapshot and loads browser storage lazily during client use.
-- Workspace storage key: **`buyora-workspace-v1`**. Appearance key: **`buyora-theme`**, with `light`/`dark` values. Without a stored theme, initial appearance follows the OS.
-- Relevant cross-tab storage changes trigger reloads. Invalid data falls back to seed data with a notice. Failed writes retain updated in-memory state with a warning.
-- Initial profile: **Soma Rahman / soma@example.com**. Seed reports include `sample-1`, used in landing links. `resetDemo()` restores the seeded workspace, including its profile and reports.
-- Everyone using the same browser/origin shares this local workspace. Sign-out only clears the session flag; products/reports remain.
-- Workspace/report/comparison downloads use browser-generated JSON. There is no workspace import screen or server export service.
+`npm test` covers domain logic, adapters, request errors, multipart headers and account-local state. `test:demo` still runs the original demo-domain checks.
 
-## Data models and conventions
+`npm run test:integration` requires `backend/.venv` and starts the real FastAPI routes on an ephemeral loopback port with an isolated shared in-memory SQLite database and fake image storage. It exercises the frontend API client/store across authentication, reloads, product actions, uploads/removal, post revisions, no-op saves, deletion and seller isolation. It never loads `.env` or contacts Supabase. SQLite and fake storage do not verify PostgreSQL migrations, production concurrency, real Storage permissions, deployed browser CORS or cookie policies.
 
-The exported types in [demo-data.ts](src/lib/demo-data.ts) define the current UI shapes. They are not a prescribed database schema.
+## Pending work
 
-| Type             | Fields                                                                                                                              |
-| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| `Product`        | `id`, `name`, numeric `price`, `category`, `description`, `features`, `warranty`, `delivery`, `returns`, `image`, `art`, `archived` |
-| `Post`           | `id`, `productId`, `headline`, `body`, `offer`, `cta`, `hashtags`, `platform`, `versions: PostVersion[]`                            |
-| `PostVersion`    | `id`, previous caption `body`, `createdAt`                                                                                          |
-| `Persona`        | `id`, `name`, `role`, `age`, `location`, `need`, `budget`, `color`, `initials`; all strings                                         |
-| `Audience`       | `location`, `age`, `interests`, `preferences`, `budget`, `needs`; all strings                                                       |
-| `Draft`          | `productId`, full `post`, `audience`, `personas`, `language`, demo-only `failOne`, UI `step`                                        |
-| `Reaction`       | Full `persona`, seven-value `scores`, aggregate `score`, `status`, `sentiment`, `comment`, `reason`, `positive`, `question`         |
-| `Report`         | `id`, `title`, `createdAt`, full `product`/`post`/`audience` snapshots, `language`, `reactions`, `revised`, `applied`               |
-| `Recommendation` | `id`, `title`, `detail`, `priority`, `addition`; generated locally, not stored as a report field                                    |
+Frontend: connect simulation draft/persona APIs; replace demo progress, generation, retries and reports when their APIs exist; connect dashboard/history/comparison data to those reports; connect profile editing and recovery once supported.
 
-Preserve these conventions or normalize responses in an adapter:
+Backend: implement simulation execution/jobs, persona generation, AI evaluation and seven-dimension scoring, independent retries, immutable report snapshots and APIs, report-based metrics, profile updates and password recovery. Validate migrations against an isolated PostgreSQL instance and configure real private Storage before deployment.
 
-- IDs are strings; new demo records use `crypto.randomUUID()` where available. Production IDs should be authoritative server values.
-- Dates are ISO strings. Display uses `en-GB` and `Asia/Dhaka`; money uses BDT, `৳`, and `en-BD` formatting. There is no currency field.
-- String fields exist even when empty. Normalize `null` values before passing data into current consumers.
-- `language` is exactly `"en"` or `"bn"` and selects response language. The interface remains English.
-- Platform options are `Facebook`, `Instagram`, `Facebook Live`, and `WhatsApp`; the type itself is a string.
-- Persona age is a string/range. Budget is descriptive, such as `High sensitivity`, rather than a numeric amount.
-- `Product.image` is currently empty or a file data URL. `art` selects an illustration (`tote`, `audio`, `kurta` in seed data). Persona colors/initials are presentation fields.
-- `Report.revised` starts as `""`; `applied` starts as `[]` and holds recommendation IDs.
-- Draft `step` is `0`, `1`, or `2`. `failOne` demonstrates a failed evaluation. Neither is a production evaluation instruction.
-
-### Score contract
-
-`Reaction.scores` contains exactly **seven finite numbers from 0 to 100**, ordered as follows:
-
-| Index | Dimension       |
-| ----- | --------------- |
-| 0     | Interest        |
-| 1     | Relevance       |
-| 2     | Value           |
-| 3     | Price fit       |
-| 4     | Trust           |
-| 5     | Clarity         |
-| 6     | Purchase intent |
-
-`evaluate()` computes `Reaction.score` as the rounded mean of these values. `overall(report)` averages **completed** reaction scores and rounds the result; `overall(report, index)` averages that dimension. With no completed reactions, the value is zero. Failed reactions are excluded.
-
-Reaction status is `"complete" | "failed"`. Sentiment is `"Interested" | "Has questions" | "Unconvinced"`. Demo sentiment thresholds are at least 76, at least 60, and below 60 respectively. These are placeholder rules.
-
-A completed reaction compatible with the current UI:
-
-```json
-{
-  "persona": {
-    "id": "budget",
-    "name": "Sample buyer",
-    "role": "Budget student",
-    "age": "18-24",
-    "location": "Dhaka",
-    "need": "An affordable everyday bag",
-    "budget": "High sensitivity",
-    "color": "blue",
-    "initials": "SB"
-  },
-  "scores": [80, 78, 70, 60, 65, 85, 70],
-  "score": 73,
-  "status": "complete",
-  "sentiment": "Has questions",
-  "comment": "What is the total with delivery?",
-  "reason": "The product fits, but delivery costs are unclear.",
-  "positive": "The everyday use case is clear.",
-  "question": "What is the delivery charge?"
-}
-```
-
-The validator currently requires scores and text fields even on failed reactions. If the backend returns failures differently, update types, validation, and consumers together rather than fabricate results to fit the demo shape.
-
-Dashboard average trust equally averages each report's trust average. The latest-report panel currently labels `overall(latest)` as **“Virality Score”**; there is no separate virality field or algorithm yet. Agree on production metric semantics before integration.
-
-## Workflow rules
-
-### Products, posts, and versions
-
-- Products need a nonblank name/description and positive finite price. Form limits: name 100 characters, description 2,000, features 1,000, and warranty/delivery/returns 500 each. The price input allows 1–10,000,000 BDT in 0.01 increments.
-- Posts need an existing product, nonblank headline, and at least 20 trimmed caption characters. Form maximums: headline 180, body 5,000, offer 250, CTA 200, hashtags 500.
-- Caption edits save the **previous body** as a `PostVersion` only when the body changes. No-op saves and edits to other fields alone do not create caption versions.
-- Archive/restore changes active simulation availability. Product deletion removes its associated working posts; historical reports retain their snapshots.
-- Starting from a product/post pre-fills the draft. Draft fields and wizard position persist locally.
-
-### Simulation and report lifecycle
-
-1. Select an active product and matching post.
-2. Review optional audience context.
-3. Choose **2–8 personas** with unique IDs and nonblank name, role, age, location, and need. “Regeneration” currently rearranges templates and applies audience context; it does not call AI.
-4. Validate the complete draft and clone inputs. Progress increments on a timer, independently of actual evaluation.
-5. `makeReport()` creates demo reactions and snapshots. Save the report and working post/version history, then open `/reports/{id}`.
-
-Reports preserve original product, post, audience, and persona data after working-record edits/deletions. Retry replaces only the failed persona's reaction; successful results remain. The current retry uses a local delay and `evaluate()`.
-
-Recommendations use caption text and stored product policies. Revised captions concatenate selected additions with the original post; unverified payment/proof details remain bracketed for seller review. Saving a revision updates working-post caption history without rewriting the report's original post snapshot. Rerunning prepares a draft and creates a new report.
-
-History sorting/filtering and comparisons run client-side over all reports. Comparison requires at least one reaction and every present reaction to be complete. The current report model has no separate job status or expected-result count, so the backend job contract must track unfinished work explicitly. JSON export and browser print/Save as PDF run locally.
-
-### Spread simulation
-
-[spread-simulation.ts](src/lib/spread-simulation.ts) derives **60 fictional viewers over three rounds** from completed persona reactions. It is a deterministic visualization, not measured reach or a sales forecast. Failed reactions do not seed viewers.
-
-States are `unreached`, `viewing`, `ignored`, `engaged`, `objection`, `drop-off`, and `inboxed`. The graph supports playback, replay, stepping, speed, scrubbing, selection, pan/zoom, filters, and keyboard navigation. The compact landing preview loops after a two-second final hold, pauses when the page is hidden, and respects reduced-motion preferences.
-
-No graph endpoint is required to retain the existing visualization with compatible server reactions. If production propagation results are desired, define a separate graph/timeline contract and replace the local model explicitly.
-
-## Things Yet to Do
-
-- **Design the database:** Define users, products, posts, post versions, personas, simulation jobs, reports, reactions, and recommendations, including relationships and constraints.
-- **Create database migrations:** Build the application tables in PostgreSQL using SQLAlchemy and Alembic.
-- **Implement authentication:** Registration, login, logout, password recovery, session management, and protected endpoints.
-- **Enforce data ownership:** Ensure each seller can access and modify only their own products, posts, simulations, and reports.
-- **Build product APIs:** Create, list, search, update, duplicate, archive, restore, and delete products.
-- **Handle product images:** Validate uploads, store files, and return image URLs.
-- **Build post APIs:** Create and edit promotional posts, associate them with products, and preserve caption version history.
-- **Save simulation drafts:** Persist selected products, post content, audience details, personas, language, and wizard position.
-- **Manage buyer personas:** Provide templates and support selecting, customizing, and generating personas from audience context.
-- **Implement simulation processing:** Validate inputs, create background jobs, evaluate personas, and expose actual progress and job status.
-- **Integrate AI services:** Generate buyer reactions, questions, explanations, and recommendations in English and Bangla.
-- **Implement scoring:** Define consistent rules for the seven score dimensions, aggregate scores, and sentiments.
-- **Handle failures and retries:** Track failed persona evaluations, retry them independently, and preserve successful results.
-- **Store immutable report inputs:** Keep original product, post, audience, and persona snapshots so later edits do not change historical results.
-- **Build report APIs:** Retrieve, list, search, filter, sort, paginate, and delete reports.
-- **Support post improvement:** Generate recommendations and revised captions, save revisions, and rerun simulations as new reports.
-- **Support dashboard and comparisons:** Return summary metrics and compatible report data for comparisons and exports.
-- **Support the spread visualization:** Return compatible persona reactions; the current frontend generates the viewer graph locally.
-- **Implement account settings:** Retrieve and update profiles and support account data export.
-- **Define the API contract:** Document endpoints, payloads, validation errors, statuses, and authentication using OpenAPI.
-- **Connect the frontend:** Replace browser-local demo operations with API calls and real loading, error, authentication, and progress handling.
-- **Test the backend:** Cover ownership, validation, scoring, simulation jobs, retries, snapshot integrity, and database migrations.
-- **Prepare deployment:** Configure secrets, CORS, database connections, worker processes, logging, health checks, backups, rate limits, and AI usage limits.
-
-## Authentication setup
-
-The frontend calls http://localhost:8000 by default. Set NEXT_PUBLIC_API_URL in .env.local to change it, then restart Next.js. Start the backend and include the exact frontend origin in CORS_ORIGINS. Use the same localhost hostname for both servers and credentials are included in authentication requests. Use HTTPS and secure cookies in deployment.
+The production build also reports an existing Next.js security advisory for the installed version. Dependency upgrading remains a separate follow-up.

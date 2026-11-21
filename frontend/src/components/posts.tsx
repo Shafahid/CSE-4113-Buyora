@@ -5,10 +5,9 @@ import {
   Post,
   dateLabel,
   initialDraft,
-  savePostVersion,
-  uid,
 } from "@/lib/demo-data";
-import { updateDemo, useDemo } from "@/lib/store";
+import { updateDemo, useDemo, savePost, loadPostHistory, deletePost } from "@/lib/store";
+import { errorMessage } from "@/lib/api-client";
 import {
   Badge,
   ButtonLink,
@@ -29,17 +28,15 @@ export function Posts() {
   const [editing, setEditing] = useState<Post | null>(null);
   const [history, setHistory] = useState<Post | null>(null);
   const [query, setQuery] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [deleting, setDeleting] = useState<Post | null>(null);
   const activeProducts = state.products.filter((p) => !p.archived);
   const list = state.posts.filter((p) =>
     `${p.headline} ${p.body}`.toLowerCase().includes(query.toLowerCase()),
   );
-  function save(post: Post) {
-    updateDemo((s) => ({
-      ...s,
-      posts: s.posts.some((p) => p.id === post.id)
-        ? s.posts.map((p) => (p.id === post.id ? savePostVersion(p, post) : p))
-        : [...s.posts, savePostVersion(undefined, post)],
-    }));
+  async function save(post: Post) {
+    await savePost(post);
     setEditing(null);
     toast("Post saved");
   }
@@ -56,7 +53,7 @@ export function Posts() {
           onClick={() =>
             setEditing({
               ...initialDraft.post,
-              id: uid(),
+              id: "",
               productId: activeProducts[0]?.id || "",
               headline: "",
               body: "",
@@ -70,6 +67,8 @@ export function Posts() {
           Create post
         </button>
       </PageHeading>
+      {error && <p className="form-error" role="alert">{error}</p>}
+      {busy && <p role="status">Loading saved versions…</p>}
       <div className="list-toolbar">
         <span className="muted">{state.posts.length} promotional posts</span>
         <label className="search-input">
@@ -128,9 +127,18 @@ export function Posts() {
                       className="icon-button"
                       title="Version history"
                       aria-label={`Version history for ${p.headline}`}
-                      onClick={() => setHistory(p)}
+                      disabled={busy}
+                      onClick={async () => {
+                        setBusy(true); setError("");
+                        try { setHistory(await loadPostHistory(p.id)); }
+                        catch (error) { setError(errorMessage(error)); }
+                        finally { setBusy(false); }
+                      }}
                     >
                       <Icon name="history" size={17} />
+                    </button>
+                    <button className="icon-button danger-text" aria-label={`Delete ${p.headline}`} onClick={() => { setError(""); setDeleting(p); }}>
+                      <Icon name="trash" size={17} />
                     </button>
                   </div>
                   <button
@@ -178,19 +186,19 @@ export function Posts() {
           <Notice>
             Earlier captions are preserved whenever you save a revision.
           </Notice>
-          <h3>Current · Version {history.versions.length + 1}</h3>
+          <h3>Current · Version {history.versionNumber ?? history.versions.length + 1}</h3>
           <p className="version-body">{history.body}</p>
           {[...history.versions].reverse().map((v, i) => (
             <div className="version-row" key={v.id}>
               <div className="row spread">
-                <h3>Version {history.versions.length - i}</h3>
+                <h3>Version {v.versionNumber ?? history.versions.length - i}</h3>
                 <span className="muted">{dateLabel(v.createdAt)}</span>
               </div>
               <p>{v.body}</p>
               <button
                 className="text-link"
                 onClick={() => {
-                  setEditing({ ...history, body: v.body });
+                  setEditing({ ...history, body: v.body, headline: v.headline ?? history.headline, offer: v.offer ?? "", cta: v.cta ?? "", hashtags: v.hashtags ?? "", platform: v.platform ?? history.platform });
                   setHistory(null);
                 }}
               >
@@ -198,6 +206,21 @@ export function Posts() {
               </button>
             </div>
           ))}
+        </Modal>
+      )}
+      {deleting && (
+        <Modal title="Delete this post?" onClose={() => { if (!busy) setDeleting(null); }}>
+          <p>This permanently deletes the post, its versions, and linked simulation drafts on the server. Local demo reports keep their snapshots.</p>
+          {error && <p className="form-error" role="alert">{error}</p>}
+          <div className="modal-actions">
+            <button className="button secondary" disabled={busy} onClick={() => setDeleting(null)}>Keep post</button>
+            <button className="button danger" disabled={busy} onClick={async () => {
+              setBusy(true); setError("");
+              try { await deletePost(deleting.id); setDeleting(null); toast("Post deleted"); }
+              catch (error) { setError(errorMessage(error)); }
+              finally { setBusy(false); }
+            }}>{busy ? "Deleting…" : "Delete post"}</button>
+          </div>
         </Modal>
       )}
     </>
@@ -209,14 +232,15 @@ function PostEditor({
   onClose,
 }: {
   post: Post;
-  onSave: (p: Post) => void;
+  onSave: (p: Post) => Promise<void>;
   onClose: () => void;
 }) {
   const { products } = useDemo();
   const [p, setP] = useState(post);
   const [error, setError] = useState("");
+  const [pending, setPending] = useState(false);
   const patch = (value: Partial<Post>) => setP((s) => ({ ...s, ...value }));
-  function submit(e: FormEvent) {
+  async function submit(e: FormEvent) {
     e.preventDefault();
     if (!products.some((product) => product.id === p.productId)) {
       setError("Choose an existing product for this post.");
@@ -228,19 +252,24 @@ function PostEditor({
       );
       return;
     }
-    onSave({ ...p, headline: p.headline.trim(), body: p.body.trim() });
+    setPending(true); setError("");
+    try { await onSave({ ...p, headline: p.headline.trim(), body: p.body.trim() }); }
+    catch (error) { setError(errorMessage(error)); }
+    finally { setPending(false); }
   }
   return (
     <Modal
       title={post.headline ? "Revise your post" : "Create a promotional post"}
-      onClose={onClose}
+      onClose={() => { if (!pending) onClose(); }}
       wide
     >
       <form onSubmit={submit}>
+        <fieldset disabled={pending} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
         <div className="form-grid">
           <Field label="Related product">
             <select
               required
+              disabled={Boolean(post.latestVersionId)}
               value={p.productId}
               onChange={(e) => patch({ productId: e.target.value })}
             >
@@ -318,9 +347,10 @@ function PostEditor({
             Cancel
           </button>
           <button className="button primary">
-            Save version <Icon name="check" size={15} />
+            {pending ? "Saving…" : "Save version"} <Icon name="check" size={15} />
           </button>
         </div>
+        </fieldset>
       </form>
     </Modal>
   );

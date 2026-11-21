@@ -10,9 +10,9 @@ import {
   recommendations,
   Reaction,
   Report,
-  savePostVersion,
 } from "@/lib/demo-data";
-import { download, updateDemo, useDemo } from "@/lib/store";
+import { download, updateDemo, useDemo, savePost } from "@/lib/store";
+import { errorMessage } from "@/lib/api-client";
 import {
   Avatar,
   Badge,
@@ -49,6 +49,8 @@ export function ReportView({
   const [commentFilter, setCommentFilter] = useState("All reactions");
   const [selected, setSelected] = useState<string[] | null>(null);
   const [retrying, setRetrying] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
   const router = useRouter();
   const toast = useToast();
   if (!report)
@@ -136,21 +138,15 @@ export function ReportView({
       "Revised caption created. Review bracketed details before publishing.",
     );
   }
-  function saveRevision() {
-    updateDemo((s) => {
-      const existing = s.posts.find((x) => x.id === r.post.id);
-      const post = savePostVersion(existing || r.post, {
-        ...r.post,
-        body: r.revised,
-      });
-      return {
-        ...s,
-        posts: existing
-          ? s.posts.map((x) => (x.id === post.id ? post : x))
-          : [...s.posts, post],
-      };
-    });
-    toast("Revised caption saved as a separate post version");
+  async function saveRevision() {
+    setSaving(true); setSaveError("");
+    try {
+      const existing = state.posts.find((post) => post.id === r.post.id);
+      if (!existing) throw new Error("The original post is no longer available. Create a new post from the Products screen.");
+      await savePost({ ...existing, body: r.revised });
+      toast("Revised caption saved as a separate post version");
+    } catch (error) { setSaveError(errorMessage(error)); }
+    finally { setSaving(false); }
   }
   const comments = complete.filter(
     (x) => commentFilter === "All reactions" || x.sentiment === commentFilter,
@@ -637,9 +633,9 @@ export function ReportView({
                       <Icon name="copy" size={15} />
                       Copy caption
                     </button>
-                    <button className="button secondary" onClick={saveRevision}>
+                    <button className="button secondary" disabled={saving} onClick={saveRevision}>
                       <Icon name="file" size={15} />
-                      Save as post version
+                      {saving ? "Saving…" : "Save as post version"}
                     </button>
                     <button
                       className="button primary"
@@ -648,6 +644,7 @@ export function ReportView({
                       Test this revision <Icon name="arrow" size={15} />
                     </button>
                   </div>
+                  {saveError && <p className="form-error" role="alert">{saveError}</p>}
                 </>
               ) : (
                 <EmptyState

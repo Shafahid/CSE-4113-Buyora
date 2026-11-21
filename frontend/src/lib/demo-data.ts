@@ -11,8 +11,9 @@ export type Product = {
   image: string;
   art: string;
   archived: boolean;
+  images?: { id: string; url: string }[];
 };
-export type PostVersion = { id: string; body: string; createdAt: string };
+export type PostVersion = { id: string; body: string; createdAt: string; versionNumber?: number } & Partial<Pick<Post, "headline" | "offer" | "cta" | "hashtags" | "platform">>;
 export type Post = {
   id: string;
   productId: string;
@@ -23,6 +24,9 @@ export type Post = {
   hashtags: string;
   platform: string;
   versions: PostVersion[];
+  latestVersionId?: string;
+  latestVersionCreatedAt?: string;
+  versionNumber?: number;
 };
 export type Persona = {
   id: string;

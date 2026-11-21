@@ -312,7 +312,10 @@ export function Modal({
     <dialog
       ref={ref}
       className={`modal ${wide ? "wide" : ""}`}
-      onCancel={onClose}
+      onCancel={(event) => {
+        event.preventDefault();
+        onClose();
+      }}
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
@@ -348,7 +351,7 @@ export function ProductArt({
   if (product.image)
     return (
       <div className={`product-art ${className}`}>
-        {/* Uploaded images are browser-local data URLs; no optimization server is needed. */}
+        {/* Private Storage URLs expire; load them directly without an optimization cache. */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={product.image} alt={product.name} />
       </div>

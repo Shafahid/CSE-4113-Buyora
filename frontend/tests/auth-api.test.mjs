@@ -1,11 +1,8 @@
 import { test, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
-import ts from "typescript";
+import { createTypeScriptLoader } from "./load-typescript.mjs";
 
-const source = await readFile(new URL("../src/lib/auth-api.ts", import.meta.url), "utf8");
-const { outputText } = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 } });
-const api = await import("data:text/javascript;base64," + Buffer.from(outputText).toString("base64"));
+const api = await createTypeScriptLoader()("../src/lib/auth-api.ts");
 const originalFetch = globalThis.fetch;
 afterEach(() => { globalThis.fetch = originalFetch; });
 

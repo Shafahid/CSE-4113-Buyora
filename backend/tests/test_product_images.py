@@ -131,6 +131,23 @@ def test_invalid_and_oversize_files(setup):
         assert conn.execute(select(ProductImage)).first() is None
 
 
+def test_corrupt_png_checksum_is_validation_error(setup):
+    client, engine, storage = setup
+    login(client, "one@example.com")
+    product_id = make_product(client)
+    corrupted = bytearray(image_bytes())
+    corrupted[corrupted.index(b"IDAT") + 4] ^= 1
+    response = client.post(
+        f"/products/{product_id}/images",
+        files={"file": ("corrupt.png", bytes(corrupted), "image/png")},
+        headers=ORIGIN,
+    )
+    assert response.status_code == 422
+    assert storage.objects == {}
+    with engine.connect() as conn:
+        assert conn.execute(select(ProductImage)).first() is None
+
+
 def test_failed_upload_does_not_insert(setup):
     client, engine, storage = setup
     login(client, "one@example.com")

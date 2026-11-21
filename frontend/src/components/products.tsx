@@ -2,7 +2,8 @@
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { Product, money, uid, initialDraft } from "@/lib/demo-data";
-import { useDemo, updateDemo } from "@/lib/store";
+import { useDemo, updateDemo, saveProduct, duplicateProduct, archiveProduct, deleteProduct, uploadProductImage, removeProductImage, refreshProduct } from "@/lib/store";
+import { errorMessage } from "@/lib/api-client";
 import {
   Badge,
   EmptyState,
@@ -37,6 +38,14 @@ export function Products() {
   const [editing, setEditing] = useState<Product | null>(null);
   const [viewing, setViewing] = useState<Product | null>(null);
   const [deleting, setDeleting] = useState<Product | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  async function action(work: () => Promise<void>, message: string) {
+    setBusy(true); setError("");
+    try { await work(); toast(message); }
+    catch (error) { setError(errorMessage(error)); }
+    finally { setBusy(false); }
+  }
   const list = products.filter(
     (p) =>
       p.archived === archived &&
@@ -66,12 +75,15 @@ export function Products() {
       >
         <button
           className="button primary"
-          onClick={() => setEditing({ ...empty, id: uid() })}
+          disabled={busy}
+          onClick={() => setEditing({ ...empty })}
         >
           <Icon name="plus" size={17} />
           Add product
         </button>
       </PageHeading>
+      {error && <p className="form-error" role="alert">{error}</p>}
+      {busy && <p role="status">Saving changes…</p>}
       <div className="list-toolbar">
         <div className="segmented">
           <button
@@ -134,6 +146,7 @@ export function Products() {
                       className="icon-button"
                       aria-label={`Edit ${p.name}`}
                       title="Edit product"
+                      disabled={busy}
                       onClick={() => setEditing(p)}
                     >
                       <Icon name="edit" size={16} />
@@ -142,21 +155,8 @@ export function Products() {
                       className="icon-button"
                       aria-label={`Duplicate ${p.name}`}
                       title="Duplicate product"
-                      onClick={() => {
-                        updateDemo((s) => ({
-                          ...s,
-                          products: [
-                            ...s.products,
-                            {
-                              ...p,
-                              id: uid(),
-                              name: `${p.name} (copy)`,
-                              archived: false,
-                            },
-                          ],
-                        }));
-                        toast("Product duplicated");
-                      }}
+                      disabled={busy}
+                      onClick={() => void action(() => duplicateProduct(p.id), "Product duplicated without photos")}
                     >
                       <Icon name="copy" size={16} />
                     </button>
@@ -164,17 +164,8 @@ export function Products() {
                       className="icon-button"
                       aria-label={`${p.archived ? "Restore" : "Archive"} ${p.name}`}
                       title={p.archived ? "Restore product" : "Archive product"}
-                      onClick={() => {
-                        updateDemo((s) => ({
-                          ...s,
-                          products: s.products.map((x) =>
-                            x.id === p.id ? { ...x, archived: !x.archived } : x,
-                          ),
-                        }));
-                        toast(
-                          p.archived ? "Product restored" : "Product archived",
-                        );
-                      }}
+                      disabled={busy}
+                      onClick={() => void action(() => archiveProduct(p.id, !p.archived), p.archived ? "Product restored" : "Product archived")}
                     >
                       <Icon name={p.archived ? "refresh" : "box"} size={16} />
                     </button>
@@ -182,6 +173,7 @@ export function Products() {
                       className="icon-button danger-text"
                       aria-label={`Delete ${p.name}`}
                       title="Delete product"
+                      disabled={busy}
                       onClick={() => setDeleting(p)}
                     >
                       <Icon name="trash" size={16} />
@@ -210,7 +202,7 @@ export function Products() {
           {!archived && !query && (
             <button
               className="button primary"
-              onClick={() => setEditing({ ...empty, id: uid() })}
+              onClick={() => setEditing({ ...empty })}
             >
               Add product
             </button>
@@ -225,13 +217,7 @@ export function Products() {
         <ProductEditor
           product={editing}
           onClose={() => setEditing(null)}
-          onSave={(p) => {
-            updateDemo((s) => ({
-              ...s,
-              products: s.products.some((x) => x.id === p.id)
-                ? s.products.map((x) => (x.id === p.id ? p : x))
-                : [...s.products, p],
-            }));
+          onSave={() => {
             setEditing(null);
             toast("Product saved");
           }}
@@ -278,29 +264,24 @@ export function Products() {
         </Modal>
       )}
       {deleting && (
-        <Modal title="Delete this product?" onClose={() => setDeleting(null)}>
+        <Modal title="Delete this product?" onClose={() => { if (!busy) setDeleting(null); }}>
           <p>
             “{deleting.name}” and its promotional drafts will be removed. Saved
             reports keep their original product snapshot.
           </p>
+          {error && <p className="form-error" role="alert">{error}</p>}
           <div className="modal-actions">
             <button
               className="button secondary"
+              disabled={busy}
               onClick={() => setDeleting(null)}
             >
               Keep product
             </button>
             <button
               className="button danger"
-              onClick={() => {
-                updateDemo((s) => ({
-                  ...s,
-                  products: s.products.filter((p) => p.id !== deleting.id),
-                  posts: s.posts.filter((p) => p.productId !== deleting.id),
-                }));
-                setDeleting(null);
-                toast("Product deleted");
-              }}
+              disabled={busy}
+              onClick={() => void action(async () => { await deleteProduct(deleting.id); setDeleting(null); }, "Product deleted")}
             >
               Delete product
             </button>
@@ -317,13 +298,16 @@ export function ProductEditor({
 }: {
   product: Product;
   onClose: () => void;
-  onSave: (p: Product) => void;
+  onSave: () => void;
 }) {
   const [p, setP] = useState(product);
   const [error, setError] = useState("");
+  const [pending, setPending] = useState(false);
+  const [file, setFile] = useState<File | null>(null);
+  const [removeIds, setRemoveIds] = useState<string[]>([]);
   const change = (key: keyof Product, value: string | number) =>
     setP((s) => ({ ...s, [key]: value }));
-  const submit = (e: FormEvent) => {
+  const submit = async (e: FormEvent) => {
     e.preventDefault();
     if (
       !p.name.trim() ||
@@ -336,21 +320,50 @@ export function ProductEditor({
       );
       return;
     }
-    onSave({ ...p, name: p.name.trim() });
+    setPending(true); setError("");
+    let detailsSaved = false;
+    try {
+      const saved = await saveProduct({ ...p, name: p.name.trim() });
+      detailsSaved = true;
+      setP(saved);
+      if (file) {
+        await uploadProductImage(saved.id, file);
+        setFile(null);
+      }
+      for (const imageId of removeIds) {
+        await removeProductImage(saved.id, imageId);
+        setRemoveIds((ids) => ids.filter((id) => id !== imageId));
+      }
+      setP(await refreshProduct(saved.id));
+      onSave();
+    } catch (error) {
+      setError(`${detailsSaved ? "Product details are saved. Photo changes may be incomplete. " : ""}${errorMessage(error)}`);
+    } finally { setPending(false); }
   };
   return (
     <Modal
       title={product.name ? "Edit product" : "Add a product"}
-      onClose={onClose}
+      onClose={() => { if (!pending) onClose(); }}
       wide
     >
       <form onSubmit={submit}>
+        <fieldset disabled={pending} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
         <div className="editor-grid">
           <div>
             <ProductArt product={p} />
+            {Boolean(p.images?.length) && (
+              <div className="row tight" style={{ flexWrap: "wrap" }}>
+                {p.images?.filter((image) => !removeIds.includes(image.id)).map((image, index) => (
+                  <button type="button" className="icon-button" key={image.id}
+                    aria-label={`Preview saved photo ${index + 1}`} onClick={() => change("image", image.url)}>
+                    <ProductArt product={{ ...p, image: image.url }} className="product-thumb" />
+                  </button>
+                ))}
+              </div>
+            )}
             <label className="upload-button">
               <Icon name="upload" size={16} />
-              Upload product photo
+              Add product photo
               <input
                 type="file"
                 accept="image/png,image/jpeg,image/webp"
@@ -361,15 +374,16 @@ export function ProductEditor({
                     !["image/png", "image/jpeg", "image/webp"].includes(
                       file.type,
                     ) ||
-                    file.size > 750000
+                    file.size > 5 * 1024 * 1024
                   ) {
                     setError(
-                      "Choose a PNG, JPG, or WebP image smaller than 750 KB.",
+                      "Choose a PNG, JPG, or WebP image up to 5 MB.",
                     );
                     return;
                   }
                   const reader = new FileReader();
                   reader.onload = () => {
+                    setFile(file);
                     change("image", String(reader.result));
                     setError("");
                   };
@@ -379,12 +393,22 @@ export function ProductEditor({
                 }}
               />
             </label>
-            <small className="muted">PNG, JPG, WebP · up to 750 KB</small>
+            <small className="muted">PNG, JPG, WebP · up to 5 MB. Photos are saved after product details.</small>
+            {file && <p className="muted">Selected photo: {file.name}</p>}
             {p.image && (
               <button
                 type="button"
                 className="text-link"
-                onClick={() => change("image", "")}
+                onClick={() => {
+                  if (file) { setFile(null); change("image", p.images?.find((image) => !removeIds.includes(image.id))?.url ?? ""); }
+                  else {
+                    const image = p.images?.find((image) => image.url === p.image);
+                    if (image) {
+                      setRemoveIds((ids) => [...ids, image.id]);
+                      change("image", p.images?.find((item) => item.id !== image.id && !removeIds.includes(item.id))?.url ?? "");
+                    }
+                  }
+                }}
               >
                 Remove photo
               </button>
@@ -484,9 +508,10 @@ export function ProductEditor({
             Cancel
           </button>
           <button className="button primary" type="submit">
-            Save product <Icon name="check" size={16} />
+            {pending ? "Saving…" : "Save product"} <Icon name="check" size={16} />
           </button>
         </div>
+        </fieldset>
       </form>
     </Modal>
   );

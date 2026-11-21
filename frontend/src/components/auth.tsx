@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useSyncExternalStore, type FormEvent } from "react";
-import { updateDemo } from "@/lib/store";
+import { setSession } from "@/lib/store";
 import { Brand, Field, Icon, ThemeToggle } from "./ui";
 import { AuthError, login, register } from "@/lib/auth-api";
 
@@ -44,8 +44,9 @@ export function Auth({ mode }: { mode: "login" | "register" | "forgot" }) {
         registered = true;
       }
       const user = await login(email, password);
-      updateDemo((s) => ({ ...s, signedIn: true, profile: { name: user.display_name, email: user.email } }));
-      router.push("/dashboard");
+      setSession(user);
+      const next = new URL(window.location.href).searchParams.get("next");
+      router.replace(next?.startsWith("/") && !next.startsWith("//") && !next.includes("\\") ? next : "/dashboard");
     } catch (err) {
       const message = err instanceof AuthError ? err.message : "Something went wrong. Please try again.";
       setError(registered ? "Your account was created, but sign in failed. Please sign in from the login page." : message);
@@ -148,7 +149,7 @@ export function Auth({ mode }: { mode: "login" | "register" | "forgot" }) {
               {mode !== "forgot" && (
                 <Field
                   label="Password"
-                  hint="Use any 8+ characters. Please don’t use a real password."
+                  hint={mode === "register" ? "Use a unique password with at least 8 characters." : undefined}
                 >
                   <div className="password-input">
                     <input

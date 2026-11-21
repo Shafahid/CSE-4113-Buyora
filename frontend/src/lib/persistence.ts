@@ -39,7 +39,7 @@ function product(v: unknown): boolean {
     ]) &&
     typeof v.price === "number" &&
     Number.isFinite(v.price) &&
-    v.price > 0 &&
+    v.price >= 0 &&
     typeof v.archived === "boolean"
   );
 }

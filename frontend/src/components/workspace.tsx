@@ -1,11 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 import { Brand, Icon, ThemeToggle } from "./ui";
-import { updateDemo, useWorkspace } from "@/lib/store";
-import { AuthError, currentUser } from "@/lib/auth-api";
+import { clearSession, loadWorkspace, useWorkspace } from "@/lib/store";
+import { unauthorizedEvent } from "@/lib/api-client";
 import { Footer } from "./footer";
 
 const navigation = [
@@ -18,24 +18,38 @@ const navigation = [
 ];
 export function Workspace({ children }: { children: ReactNode }) {
   const pathname = usePathname();
-  const { data: state, error } = useWorkspace();
+  const { data: state, error, status } = useWorkspace();
+  const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
-  const [sessionError, setSessionError] = useState("");
   useEffect(() => {
-    let active = true;
-    currentUser().then((user) => {
-      if (active) updateDemo((s) => ({ ...s, signedIn: true, profile: { name: user.display_name, email: user.email } }));
-    }).catch((err: unknown) => {
-      if (!active) return;
-      if (err instanceof AuthError && err.status === 401) {
-        updateDemo((s) => ({ ...s, signedIn: false }));
-      } else {
-        updateDemo((s) => ({ ...s, signedIn: false }));
-        setSessionError("Could not check your session. Please check your connection.");
-      }
-    });
-    return () => { active = false; };
+    const expired = () => clearSession();
+    const refresh = () => { if (document.visibilityState === "visible") void loadWorkspace(); };
+    window.addEventListener(unauthorizedEvent, expired);
+    window.addEventListener("focus", refresh);
+    const timer = setInterval(refresh, 240000);
+    void loadWorkspace();
+    return () => {
+      window.removeEventListener(unauthorizedEvent, expired);
+      window.removeEventListener("focus", refresh);
+      clearInterval(timer);
+    };
   }, []);
+  useEffect(() => {
+    if (status === "unauthenticated") router.replace(`/login?next=${encodeURIComponent(pathname)}`);
+  }, [status, pathname, router]);
+  if (status === "loading" || status === "unauthenticated") return (
+    <main className="workspace-content" id="main-content" role="status">
+      {status === "loading" ? "Loading your workspace…" : "Opening sign in…"}
+    </main>
+  );
+  if (status === "error") return (
+    <main className="workspace-content" id="main-content">
+      <h1>Your workspace could not be loaded</h1>
+      <p role="alert">{error}</p>
+      <button className="button primary" onClick={() => void loadWorkspace()}>Try again</button>
+      <Link className="button secondary" href="/login">Back to sign in</Link>
+    </main>
+  );
   const active = navigation.find((n) => pathname.startsWith(n.href));
   return (
     <div className="workspace">
@@ -153,10 +167,10 @@ export function Workspace({ children }: { children: ReactNode }) {
             </Link>
           </div>
         </header>
-        {sessionError && <div className="storage-warning" role="alert">{sessionError}</div>}
         {error && (
           <div className="storage-warning" role="alert">
             {error}
+            <button className="text-link" onClick={() => void loadWorkspace()}>Reload workspace</button>
           </div>
         )}
         <main className="workspace-content" id="main-content">

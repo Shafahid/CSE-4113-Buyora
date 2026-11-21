@@ -12,10 +12,10 @@ import {
   makeReport,
   money,
   personas as templates,
-  savePostVersion,
   uid,
 } from "@/lib/demo-data";
-import { updateDemo, useWorkspace } from "@/lib/store";
+import { updateDemo, useWorkspace, savePost } from "@/lib/store";
+import { errorMessage } from "@/lib/api-client";
 import { postError, simulationError } from "@/lib/workflow";
 import {
   Avatar,
@@ -42,6 +42,7 @@ export function Simulation() {
   const [editing, setEditing] = useState<Persona | null>(null);
   const [error, setError] = useState("");
   const [running, setRunning] = useState(false);
+  const [preparing, setPreparing] = useState(false);
   const [progress, setProgress] = useState(0);
   const [preview, setPreview] = useState<Report | null>(null);
   const [regenerated, setRegenerated] = useState(false);
@@ -86,23 +87,30 @@ export function Simulation() {
     patch({ step: Math.min(2, draft.step + 1) });
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
-  function start() {
+  async function start() {
     const invalid = simulationError(draft, product);
     if (invalid || !product) {
       setError(invalid);
       return;
     }
-    const report = makeReport(draft, product, uid(), new Date().toISOString());
-    setPreview(report);
-    pending.current = {
-      report,
-      draft: structuredClone(draft),
-      product: structuredClone(product),
-    };
-    saved.current = false;
-    setError("");
-    setProgress(0);
-    setRunning(true);
+    setPreparing(true); setError("");
+    const snapshot = structuredClone(draft);
+    try {
+      snapshot.post = await savePost(snapshot.post);
+      patch({ post: snapshot.post });
+      const report = makeReport(snapshot, product, uid(), new Date().toISOString());
+      setPreview(report);
+      pending.current = {
+        report,
+        draft: snapshot,
+        product: structuredClone(product),
+      };
+      saved.current = false;
+      setError("");
+      setProgress(0);
+      setRunning(true);
+    } catch (error) { setError(errorMessage(error)); }
+    finally { setPreparing(false); }
   }
   useEffect(() => {
     if (!running) return;
@@ -116,18 +124,8 @@ export function Simulation() {
   useEffect(() => {
     if (progress !== 100 || !pending.current || saved.current) return;
     saved.current = true;
-    const { draft: d, report } = pending.current;
-    updateDemo((s) => {
-      const existing = s.posts.find((x) => x.id === d.post.id);
-      const post = savePostVersion(existing, d.post);
-      return {
-        ...s,
-        reports: [report, ...s.reports],
-        posts: existing
-          ? s.posts.map((x) => (x.id === post.id ? post : x))
-          : [...s.posts, post],
-      };
-    });
+    const { report } = pending.current;
+    updateDemo((s) => ({ ...s, reports: [report, ...s.reports] }));
     router.push(`/reports/${report.id}`);
   }, [progress, router]);
 
@@ -607,10 +605,10 @@ export function Simulation() {
               <button
                 className="button primary"
                 onClick={start}
-                disabled={draft.personas.length < 2 || !product}
+                disabled={preparing || draft.personas.length < 2 || !product}
               >
                 <Icon name="spark" size={16} />
-                Run simulation
+                {preparing ? "Saving post…" : "Run demo simulation"}
               </button>
             )}
           </div>
@@ -653,8 +651,9 @@ export function Simulation() {
             </span>
             <h3>Your draft stays yours.</h3>
             <p>
-              In this demo, details stay in your browser. No post is published
-              and no payment is collected.
+              Products and saved post versions are stored in your account.
+              Audience setup and demo reports stay in this browser. Simulation
+              processing is a preview; no post is published.
             </p>
             <Link href="/history" className="text-link">
               Explore saved reports <Icon name="arrow" size={15} />
