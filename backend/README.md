@@ -240,3 +240,21 @@ DELETE /products/{id} soft-deletes the product and retains its linked data.
 DELETE /products/{id}/images/{image_id} removes an image from Storage and the
 database; a Storage failure keeps its row so deletion can be retried. All
 mutating requests require an Origin allowed by CORS_ORIGINS.
+
+
+### Promotional posts and versions
+
+Sellers can create a post with its first version using POST
+/products/{product_id}/posts. GET /products/{product_id}/posts lists posts and
+their latest version. GET /posts/{post_id} returns that latest version;
+GET /posts/{post_id}/versions lists all versions newest first, and GET
+/posts/{post_id}/versions/{version_id} retrieves an exact saved version.
+POST /posts/{post_id}/versions saves a new immutable version. Headline, body,
+and platform must be nonblank; hashtags is an array of strings. State-changing
+requests require an allowed Origin. Ownership is checked through the product.
+
+Revision 0005 validates and reuses compatible public.posts and
+public.post_versions tables, or creates them if both are absent. A partial or
+incompatible schema stops the migration without replacing existing tables.
+Test the migration and concurrent version allocation against an isolated
+PostgreSQL instance before applying it to a shared database.

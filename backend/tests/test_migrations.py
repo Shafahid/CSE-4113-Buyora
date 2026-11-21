@@ -23,6 +23,8 @@ def test_initial_upgrade_and_downgrade_compile_as_postgresql_sql(monkeypatch) ->
     command.upgrade(migration_config(upgrade_sql), "head", sql=True)
     assert "CREATE SCHEMA buyora" in upgrade_sql.getvalue()
     assert "CREATE TABLE public.products" in upgrade_sql.getvalue()
+    assert "CREATE TABLE public.posts" in upgrade_sql.getvalue()
+    assert "CREATE TABLE public.post_versions" in upgrade_sql.getvalue()
     assert "REFERENCES public.users (id)" in upgrade_sql.getvalue()
     assert "INSERT INTO alembic_version" in upgrade_sql.getvalue()
     assert "p@ss%word" not in upgrade_sql.getvalue()
@@ -70,3 +72,34 @@ def test_autogeneration_excludes_unmanaged_supabase_tables(monkeypatch) -> None:
         )
     finally:
         Base.metadata.remove(model_table)
+
+
+def test_post_migration_reuses_existing_tables_and_rejects_partial(monkeypatch):
+    import importlib.util
+    from unittest.mock import Mock
+
+    import pytest
+
+    path = BACKEND_DIR / "migrations/versions/0005_posts.py"
+    spec = importlib.util.spec_from_file_location("migration_posts", path)
+    migration = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(migration)
+    monkeypatch.setattr(migration.context, "is_offline_mode", lambda: False)
+    monkeypatch.setattr(migration.op, "get_bind", lambda: object())
+    inspector = Mock()
+    monkeypatch.setattr(migration.sa, "inspect", lambda _: inspector)
+    create = Mock()
+    validate = Mock()
+    monkeypatch.setattr(migration, "create_tables", create)
+    monkeypatch.setattr(migration, "validate_existing", validate)
+    inspector.has_table.side_effect = [True, True]
+    migration.upgrade()
+    validate.assert_called_once_with(inspector)
+    create.assert_not_called()
+    inspector.has_table.side_effect = [True, False]
+    with pytest.raises(RuntimeError, match="Partial"):
+        migration.upgrade()
+    create.assert_not_called()
+    inspector.has_table.side_effect = [False, False]
+    migration.upgrade()
+    create.assert_called_once()
