@@ -1,6 +1,7 @@
 import hashlib
 import secrets
 from datetime import UTC, datetime, timedelta
+from typing import Annotated
 
 from argon2 import PasswordHasher
 from argon2.exceptions import InvalidHashError, VerificationError
@@ -151,8 +152,7 @@ def login(data: Credentials, request: Request, response: Response, db: DbSession
     return public_user(user)
 
 
-@router.get("/me", response_model=PublicUser)
-def me(request: Request, db: DbSession):
+def get_current_user(request: Request, db: DbSession) -> User:
     session = session_for(request, db)
     if session is None:
         raise HTTPException(status_code=401, detail="Not authenticated")
@@ -163,6 +163,11 @@ def me(request: Request, db: DbSession):
     )
     if user is None or user.profile is None:
         raise HTTPException(status_code=401, detail="Not authenticated")
+    return user
+
+
+@router.get("/me", response_model=PublicUser)
+def me(user: Annotated[User, Depends(get_current_user)]):
     return public_user(user)
 
 

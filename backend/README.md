@@ -168,3 +168,19 @@ backend database role. Register, login and logout require an Origin matching
 CORS_ORIGINS; browser requests need credentials: "include". Set
 SESSION_COOKIE_SECURE=true for HTTPS, and SESSION_COOKIE_SAMESITE=none for a
 cross-site HTTPS frontend. The session defaults to seven days.
+
+
+## Product endpoints
+
+After authentication, POST /products creates a product owned by the current
+seller; GET /products lists that seller's active, non-deleted products.
+Creation requires a trusted Origin header like the other state-changing routes.
+Supply price as a decimal string with at most two fractional digits. Optional
+fields are description, features (an array of strings), warranty, delivery_info
+and return_policy; currency defaults to BDT.
+
+Revision 0003 creates public.products when absent or checks the existing
+table's columns and keys without replacing it. Its downgrade deliberately
+requires manual review because the table may predate the migration. Test
+the revision on an isolated PostgreSQL database before applying it to a
+shared database, and back up existing data.
