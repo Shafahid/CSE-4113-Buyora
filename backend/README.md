@@ -258,3 +258,49 @@ public.post_versions tables, or creates them if both are absent. A partial or
 incompatible schema stops the migration without replacing existing tables.
 Test the migration and concurrent version allocation against an isolated
 PostgreSQL instance before applying it to a shared database.
+
+
+### Simulation setup
+
+POST /simulations saves a draft for an owned post_version_id. The optional
+audience_settings object contains location, age_range (min and optional max),
+interests (string array), purchasing_preference, budget_sensitivity, and
+product_needs. The optional language is en or bn and defaults to en.
+GET /simulations/{id} reloads the draft. PATCH /simulations/{id} updates
+language and/or replaces the full audience_settings object; send {} for the
+audience object to clear it. The post version cannot be changed. Non-draft
+simulations reject updates, and write requests require an allowed Origin.
+
+Alembic revision 0006 validates and reuses a compatible existing
+public.simulations table or creates it when absent. It does not replace existing
+data. Back up and review migrations before applying them to shared databases.
+
+
+### Simulation personas
+
+Persona payload shared with future generation workflows:
+
+    {
+      "name": "Nadia",
+      "characteristics": {
+        "label": "Budget student",
+        "age_range": { "min": 18, "max": 24 }
+      },
+      "needs": ["Practical everyday essentials at a student-friendly price"],
+      "preferences": [],
+      "budget_sensitivity": "high",
+      "is_selected": true
+    }
+
+Create with POST /simulations/{simulation_id}/personas and list with GET at
+the same path. PATCH or DELETE /simulations/{simulation_id}/personas/{persona_id}
+edits or removes a persona. Selection is a normal patch, e.g.
+{"is_selected": false}. New personas default to selected; needs and preferences
+default to empty arrays, and budget_sensitivity can be low, medium, high, or
+null. Characteristics may include additional JSON fields; patches merge
+provided characteristic fields so omitted fields are preserved. Only draft
+simulations can be changed; sellers can read their personas after a simulation
+starts. All write requests require a trusted Origin.
+
+Alembic revision 0007 checks and reuses compatible public.simulation_personas
+tables or creates them when absent. It does not move existing rows.
