@@ -1,14 +1,14 @@
 from datetime import datetime
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel, ConfigDict, Field, field_validator
-from sqlalchemy import func, select
+from sqlalchemy import MetaData, Table, delete, func, inspect, select
 
 from app.api.routes.auth import check_origin, get_current_user
 from app.api.routes.products import owned_product
 from app.db.session import DbSession
-from app.models import Post, PostVersion, Product, User
+from app.models import Post, PostVersion, Product, Simulation, SimulationPersona, User
 
 router = APIRouter(tags=["promotional posts"])
 CurrentUser = Annotated[User, Depends(get_current_user)]
@@ -195,3 +195,29 @@ def create_version(
     db.commit()
     db.refresh(version)
     return version
+
+
+@router.delete("/posts/{post_id}", status_code=204)
+def delete_post(post_id: int, user: CurrentUser, db: DbSession, _: Csrf):
+    post = owned_post(post_id, user, db, lock=True)
+    version_ids = select(PostVersion.id).where(PostVersion.post_id == post.id)
+    simulation_ids = select(Simulation.id).where(
+        Simulation.post_version_id.in_(version_ids)
+    )
+    persona_ids = select(SimulationPersona.id).where(
+        SimulationPersona.simulation_id.in_(simulation_ids)
+    )
+    # Some deployments have this unmanaged table; reflect it only if present.
+    connection = db.connection()
+    schema = None if connection.dialect.name == "sqlite" else "public"
+    if inspect(connection).has_table("persona_evaluations", schema=schema):
+        evaluations = Table(
+            "persona_evaluations", MetaData(), schema=schema, autoload_with=connection
+        )
+        db.execute(delete(evaluations).where(evaluations.c.persona_id.in_(persona_ids)))
+    db.execute(delete(SimulationPersona).where(SimulationPersona.id.in_(persona_ids)))
+    db.execute(delete(Simulation).where(Simulation.id.in_(simulation_ids)))
+    db.execute(delete(PostVersion).where(PostVersion.post_id == post.id))
+    db.delete(post)
+    db.commit()
+    return Response(status_code=204)

@@ -115,6 +115,7 @@ def create_simulation(
             Product.seller_id == user.id,
             Product.deleted_at.is_(None),
         )
+        .with_for_update(of=Post)
     )
     if version_id is None:
         raise HTTPException(status_code=404, detail="Post version not found")

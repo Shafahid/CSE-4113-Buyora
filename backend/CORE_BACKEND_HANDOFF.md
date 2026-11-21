@@ -8,7 +8,7 @@ This reference describes the current `main` checkout. Full setup and commands ar
 | --- | --- |
 | Authentication | Seller registration, login, session lookup and logout; passwords are hashed and sessions use an HttpOnly cookie.|
 | Products and images | Seller-owned create, list, detail, edit, archive/restore, duplicate and soft-delete. Images can be uploaded and removed; product detail returns short-lived signed URLs. |
-| Promotional posts | Create a post, list posts, read a post or version, and save new versions without changing earlier ones. |
+| Promotional posts | Create, list, read and permanently delete posts, and save new versions without changing earlier ones. |
 | Simulation drafts | Create, load and update audience settings and language for a fixed post version. Starting or running a simulation is pending. |
 | Personas | List, add, edit, select/deselect and remove saved personas. Writes require a draft; reads also work after it starts. Automated generation is pending. |
 
@@ -70,6 +70,7 @@ Except for auth registration/login, health and documentation, feature routes req
 | `GET /posts/{post_id}/versions` | List saved versions, newest first. |
 | `GET /posts/{post_id}/versions/{version_id}` | Return the exact saved version belonging to the post. |
 | `POST /posts/{post_id}/versions` | Save a new version; earlier versions remain unchanged. |
+| `DELETE /posts/{post_id}` | Permanently delete an owned post and its versions, simulations, personas and linked evaluations. |
 
 ### Simulation drafts and personas
 
@@ -87,6 +88,6 @@ Except for auth registration/login, health and documentation, feature routes req
 
 - **Simulation teammate:** drafts pin `post_version_id`; personas belong to `simulation_id`. Use [simulation routes](app/api/routes/simulations.py), [persona routes](app/api/routes/personas.py), [simulation model](app/models/simulation.py), [persona model](app/models/simulation_persona.py), and revisions [0006](migrations/versions/0006_simulations.py)–[0007](migrations/versions/0007_simulation_personas.py). Persona input examples are in the [README](README.md#simulation-personas).
 - **Frontend teammate:** use the API tables above, send the cookie and trusted origin, and handle `401`, `403`, `404`, `409` and `422` responses. Draft audience updates replace the whole supplied object; omitting it preserves the saved object.
-- **Pending:** persona generation/regeneration, simulation execution and evaluation jobs, retries, scoring and report APIs. The existing `public.persona_evaluations` table is not yet integrated. Social publishing, AI-written post revisions, password recovery and post deletion are also pending.
+- **Pending:** persona generation/regeneration, simulation execution and evaluation jobs, retries, scoring and report APIs. The existing `public.persona_evaluations` table is not yet integrated. Social publishing, AI-written post revisions and password recovery are also pending.
 - **Checks:** [auth](tests/test_auth.py), [products](tests/test_products.py), [images](tests/test_product_images.py), [posts](tests/test_posts.py), [simulations](tests/test_simulations.py), [personas](tests/test_personas.py), and [migrations](tests/test_migrations.py). Tests use isolated SQLite and offline PostgreSQL migration SQL; check PostgreSQL behavior separately.
 - **Configuration:** [settings](app/core/config.py) and [.env.example](.env.example) cover the database, CORS, cookie settings and private Supabase Storage. Keep secrets on the backend. Use the [README](README.md) for setup, migration and run commands.

@@ -2,12 +2,12 @@ from datetime import UTC, datetime
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine, event, select
+from sqlalchemy import Column, Integer, MetaData, Table, create_engine, event, select
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.pool import StaticPool
 
 from app.main import create_app
-from app.models import Base, Post, PostVersion, Product
+from app.models import Base, Post, PostVersion, Product, Simulation, SimulationPersona
 
 ORIGIN = {"Origin": "http://localhost:3000"}
 VERSION = {
@@ -209,3 +209,110 @@ def test_postgresql_lock_targets_parent_post():
         .with_for_update(of=Post)
     )
     assert "FOR UPDATE OF posts" in str(query.compile(dialect=postgresql.dialect()))
+
+
+def test_delete_post_removes_linked_data_and_preserves_other_posts(client):
+    client, engine = client
+    assert client.delete("/posts/1", headers=ORIGIN).status_code == 401
+    login(client, "owner@example.com")
+    product_id = product(client)
+    post = client.post(
+        f"/products/{product_id}/posts", json=VERSION, headers=ORIGIN
+    ).json()
+    post_id = post["id"]
+    version_id = post["latest_version"]["id"]
+    second_version = client.post(
+        f"/posts/{post_id}/versions", json=VERSION | {"body": "Second"}, headers=ORIGIN
+    ).json()
+    simulation_id = client.post(
+        "/simulations", json={"post_version_id": version_id}, headers=ORIGIN
+    ).json()["id"]
+    persona_id = client.post(
+        f"/simulations/{simulation_id}/personas",
+        json={"name": "Nadia"},
+        headers=ORIGIN,
+    ).json()["id"]
+    other_post = client.post(
+        f"/products/{product_id}/posts", json=VERSION, headers=ORIGIN
+    ).json()
+
+    # Simulate the optional unmanaged table documented in the handoff.
+    evaluations = Table(
+        "persona_evaluations",
+        MetaData(),
+        Column("id", Integer, primary_key=True),
+        Column("persona_id", Integer, nullable=False),
+        schema="public",
+    )
+    with engine.begin() as conn:
+        evaluations.create(conn)
+        conn.execute(evaluations.insert().values(id=1, persona_id=persona_id))
+
+    assert client.delete(f"/posts/{post_id}").status_code == 403
+    assert (
+        client.delete(
+            f"/posts/{post_id}", headers={"Origin": "https://evil.example"}
+        ).status_code
+        == 403
+    )
+    login(client, "other@example.com")
+    assert client.delete(f"/posts/{post_id}", headers=ORIGIN).status_code == 404
+    assert (
+        client.post(
+            "/auth/login",
+            json={"email": "owner@example.com", "password": "password123"},
+            headers=ORIGIN,
+        ).status_code
+        == 200
+    )
+    assert client.delete("/posts/999999", headers=ORIGIN).status_code == 404
+    response = client.delete(f"/posts/{post_id}", headers=ORIGIN)
+    assert response.status_code == 204 and response.content == b""
+    assert client.delete(f"/posts/{post_id}", headers=ORIGIN).status_code == 404
+    assert [
+        item["id"] for item in client.get(f"/products/{product_id}/posts").json()
+    ] == [other_post["id"]]
+    assert client.get(f"/posts/{post_id}").status_code == 404
+    assert client.get(f"/posts/{post_id}/versions").status_code == 404
+    assert client.get(f"/posts/{post_id}/versions/{version_id}").status_code == 404
+    assert (
+        client.post(
+            f"/posts/{post_id}/versions", json=VERSION, headers=ORIGIN
+        ).status_code
+        == 404
+    )
+    for saved_version in (version_id, second_version["id"]):
+        assert (
+            client.post(
+                "/simulations", json={"post_version_id": saved_version}, headers=ORIGIN
+            ).status_code
+            == 404
+        )
+    assert client.get(f"/simulations/{simulation_id}").status_code == 404
+    with engine.connect() as conn:
+        assert conn.execute(select(Post.id).where(Post.id == post_id)).first() is None
+        assert (
+            conn.execute(
+                select(PostVersion.id).where(PostVersion.post_id == post_id)
+            ).first()
+            is None
+        )
+        assert (
+            conn.execute(
+                select(Simulation.id).where(Simulation.id == simulation_id)
+            ).first()
+            is None
+        )
+        assert (
+            conn.execute(
+                select(SimulationPersona.id).where(SimulationPersona.id == persona_id)
+            ).first()
+            is None
+        )
+        assert conn.execute(select(evaluations.c.id)).first() is None
+        assert (
+            conn.execute(
+                select(Post.id).where(Post.id == other_post["id"])
+            ).scalar_one()
+            == other_post["id"]
+        )
