@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Brand, Icon, ThemeToggle } from "./ui";
-import { useWorkspace } from "@/lib/store";
+import { updateDemo, useWorkspace } from "@/lib/store";
+import { AuthError, currentUser } from "@/lib/auth-api";
 import { Footer } from "./footer";
 
 const navigation = [
@@ -19,6 +20,22 @@ export function Workspace({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const { data: state, error } = useWorkspace();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [sessionError, setSessionError] = useState("");
+  useEffect(() => {
+    let active = true;
+    currentUser().then((user) => {
+      if (active) updateDemo((s) => ({ ...s, signedIn: true, profile: { name: user.display_name, email: user.email } }));
+    }).catch((err: unknown) => {
+      if (!active) return;
+      if (err instanceof AuthError && err.status === 401) {
+        updateDemo((s) => ({ ...s, signedIn: false }));
+      } else {
+        updateDemo((s) => ({ ...s, signedIn: false }));
+        setSessionError("Could not check your session. Please check your connection.");
+      }
+    });
+    return () => { active = false; };
+  }, []);
   const active = navigation.find((n) => pathname.startsWith(n.href));
   return (
     <div className="workspace">
@@ -94,7 +111,7 @@ export function Workspace({ children }: { children: ReactNode }) {
             <span>
               <strong>{state.profile.name}</strong>
               <small>
-                {state.signedIn ? "Demo account" : "Demo workspace"}
+                {state.signedIn ? "Signed in" : "Demo workspace"}
               </small>
             </span>
             <Icon name="chevron" size={14} />
@@ -136,6 +153,7 @@ export function Workspace({ children }: { children: ReactNode }) {
             </Link>
           </div>
         </header>
+        {sessionError && <div className="storage-warning" role="alert">{sessionError}</div>}
         {error && (
           <div className="storage-warning" role="alert">
             {error}
