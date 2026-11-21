@@ -50,7 +50,11 @@ def test_autogeneration_excludes_unmanaged_supabase_tables(monkeypatch) -> None:
 
     include = environment["include_name"]
     assert include("buyora", "schema", {})
-    for schema in (None, "public", "auth", "storage"):
+    assert include(None, "schema", {})
+    assert include("public", "schema", {})
+    assert include("users", "table", {"schema_qualified_table_name": "users"})
+    assert not include("products", "table", {"schema_qualified_table_name": "products"})
+    for schema in ("auth", "storage"):
         assert not include(schema, "schema", {})
     assert not include(
         "unmanaged", "table", {"schema_qualified_table_name": "buyora.unmanaged"}

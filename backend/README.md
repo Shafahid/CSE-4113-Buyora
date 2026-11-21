@@ -1,4 +1,4 @@
-# Buyora backend
+﻿# Buyora backend
 
 FastAPI backend with SQLAlchemy 2, Psycopg 3, and Alembic, managed with uv.
 Supabase provides PostgreSQL hosting; a Supabase Python SDK or API key is not
@@ -92,7 +92,7 @@ Write operations explicitly call `db.commit()` after all work succeeds, or use
 ## Add a feature
 
 1. Add SQLAlchemy models under `app/models/`, inheriting from `Base`, and import
-   them in `app/models/__init__.py`. Tables inherit the private `buyora` schema.
+   them in `app/models/__init__.py`. Unrelated tables inherit the `buyora` schema; authentication models explicitly use `public`.
 2. Add request/response schemas and business logic when the feature needs them;
    keep API validation and HTTP handling in `app/api/routes/<feature>.py`.
 3. Register its router in `app/api/router.py` and inject `DbSession` where needed.
@@ -108,8 +108,7 @@ Alembic only inspects the `buyora` schema and model-owned tables. It will not
 autogenerate deletions of unmanaged tables or Supabase's `auth`, `storage`, or
 `public` tables. To remove an application table, write and review an explicit
 `op.drop_table(..., schema="buyora")` migration. Never use `Base.metadata.create_all`
-at API startup. The first migration only creates the schema; feature tables and
-authentication are added with their features.
+at API startup. The first migration creates the private schema and the auth migration uses public.
 
 Keep `buyora` out of Supabase's exposed Data API schemas. Database access currently
 uses the configured PostgreSQL role, not a user's Supabase JWT; add authentication
@@ -145,3 +144,27 @@ connection, configure `.env`, apply migrations, run the API, and open
 ```powershell
 uv add <package-name>
 ```
+
+
+## Seller authentication
+
+Authentication uses public.users, public.user_profiles, and public.auth_sessions.
+The unrelated application schema remains buyora. Revision 0002 creates the three
+tables if all are absent; if all exist it checks the required columns, IDs,
+keys and indexes before reusing them. A partial or incompatible schema requires
+manual reconciliation. No existing rows or product foreign keys are moved.
+Downgrade of this revision is intentionally blocked because tables may predate it.
+
+Test the migration against an isolated PostgreSQL database before applying it
+to Supabase. After verification and backup, configure DATABASE_URL or
+MIGRATION_DATABASE_URL for the intended database and run:
+
+    uv sync --locked
+    uv run alembic upgrade head
+
+Keep RLS disabled and ensure PUBLIC, anon and authenticated have no access to
+these tables, including privileges inherited through other roles. Use a restricted
+backend database role. Register, login and logout require an Origin matching
+CORS_ORIGINS; browser requests need credentials: "include". Set
+SESSION_COOKIE_SECURE=true for HTTPS, and SESSION_COOKIE_SAMESITE=none for a
+cross-site HTTPS frontend. The session defaults to seven days.
