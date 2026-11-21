@@ -22,6 +22,8 @@ def test_initial_upgrade_and_downgrade_compile_as_postgresql_sql(monkeypatch) ->
     upgrade_sql = StringIO()
     command.upgrade(migration_config(upgrade_sql), "head", sql=True)
     assert "CREATE SCHEMA buyora" in upgrade_sql.getvalue()
+    assert "CREATE TABLE public.products" in upgrade_sql.getvalue()
+    assert "REFERENCES public.users (id)" in upgrade_sql.getvalue()
     assert "INSERT INTO alembic_version" in upgrade_sql.getvalue()
     assert "p@ss%word" not in upgrade_sql.getvalue()
 
@@ -53,7 +55,7 @@ def test_autogeneration_excludes_unmanaged_supabase_tables(monkeypatch) -> None:
     assert include(None, "schema", {})
     assert include("public", "schema", {})
     assert include("users", "table", {"schema_qualified_table_name": "users"})
-    assert not include("products", "table", {"schema_qualified_table_name": "products"})
+    assert include("products", "table", {"schema_qualified_table_name": "products"})
     for schema in ("auth", "storage"):
         assert not include(schema, "schema", {})
     assert not include(

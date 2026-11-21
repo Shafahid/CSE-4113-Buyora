@@ -168,3 +168,75 @@ backend database role. Register, login and logout require an Origin matching
 CORS_ORIGINS; browser requests need credentials: "include". Set
 SESSION_COOKIE_SECURE=true for HTTPS, and SESSION_COOKIE_SAMESITE=none for a
 cross-site HTTPS frontend. The session defaults to seven days.
+
+
+## Product endpoints
+
+After authentication, POST /products creates a product owned by the current
+seller; GET /products lists that seller's active, non-deleted products.
+Creation requires a trusted Origin header like the other state-changing routes.
+Supply price as a decimal string with at most two fractional digits. Optional
+fields are description, features (an array of strings), warranty, delivery_info
+and return_policy; currency defaults to BDT.
+
+Revision 0003 creates public.products when absent or checks the existing
+table's columns and keys without replacing it. Its downgrade deliberately
+requires manual review because the table may predate the migration. Test
+the revision on an isolated PostgreSQL database before applying it to a
+shared database, and back up existing data.
+
+
+## Product image uploads
+
+Configure the following in backend/.env (never expose the secret to the browser
+or commit it): SUPABASE_URL, SUPABASE_SECRET_KEY, and SUPABASE_STORAGE_BUCKET.
+Use the project URL, a backend-only Supabase secret key, and the name of an
+existing **private** bucket. Set appropriate bucket MIME and size restrictions.
+Image downloads use signed URLs that expire after five minutes.
+
+Revision 0004 checks and reuses public.product_images if present, or creates it
+if absent. Back up and test all migrations on an isolated PostgreSQL database
+before applying them to a shared database. The backend does not create or alter
+buckets. A failed database insert triggers a best-effort object deletion; monitor
+backend logs and reconcile storage if cleanup fails.
+
+Real upload test using PowerShell 7 (use a development project and private
+bucket). After testing the migration in an isolated database, apply it only to
+your intended development database:
+
+    cd E:\CSE-4113-Buyora\backend
+    uv sync --locked
+    uv run alembic upgrade head
+    uv run uvicorn main:app --reload
+
+In another PowerShell 7 terminal, enter your seller email and password at the
+credential prompt. Replace the product ID and path with an existing product owned
+by that seller and a real local image:
+
+    $credentials = Get-Credential -Message "Enter your Buyora seller credentials"
+    $origin = @{ Origin = "http://localhost:3000" }
+    $body = @{ email = $credentials.UserName; password = $credentials.GetNetworkCredential().Password } | ConvertTo-Json
+    Invoke-RestMethod -Method Post -Uri "http://localhost:8000/auth/login" -Headers $origin -ContentType "application/json" -Body $body -SessionVariable session
+    $productId = 1
+    $imageFile = Get-Item "C:\path\to\your-image.png"
+    Invoke-RestMethod -Method Post -Uri "http://localhost:8000/products/$productId/images" -Headers $origin -Form @{ file = $imageFile } -WebSession $session
+    Invoke-RestMethod -Method Get -Uri "http://localhost:8000/products/$productId" -WebSession $session
+    Remove-Variable body,credentials
+
+Expect 201 for upload and a product response containing signed URLs. Verify a
+URL opens before expiry, the object exists in the private bucket, and the row in
+public.product_images contains the object key. Another seller receives 404.
+These commands modify the configured database and bucket.
+
+
+### Product management
+
+Authenticated sellers can PATCH /products/{id} to change supplied fields or
+set status to active or archived. Null clears optional descriptive fields;
+required fields and features cannot be null. GET /products defaults to active;
+pass ?status=archived to list archived products. POST /products/{id}/duplicate
+creates an active copy of product details without copying images.
+DELETE /products/{id} soft-deletes the product and retains its linked data.
+DELETE /products/{id}/images/{image_id} removes an image from Storage and the
+database; a Storage failure keeps its row so deletion can be retried. All
+mutating requests require an Origin allowed by CORS_ORIGINS.
