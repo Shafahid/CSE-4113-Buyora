@@ -96,8 +96,9 @@
 .product-art .art-tagline {
   font-size: calc(6px * var(--text-scale));
 }
+/* #141b22 */
 :root[data-theme="dark"] {
-  --page: #141b22;
+  --page: #070606;
   --ambient-wash: none;
   --surface: #1e2933;
   --muted-surface: #253541;
