@@ -52,9 +52,14 @@ export type Draft = {
   post: Post;
   audience: Audience;
   personas: Persona[];
+  availablePersonas?: Persona[];
   language: "en" | "bn";
   failOne: boolean;
   step: number;
+  activeRunId?: string;
+  runRequestId?: string;
+  requestSignature?: string;
+  fresh?: boolean;
 };
 export const dimensions = [
   "Interest",
@@ -75,6 +80,9 @@ export type Reaction = {
   reason: string;
   positive: string;
   question: string;
+  evaluationId?: number;
+  evidence?: string[];
+  errorCode?: string | null;
 };
 export type Report = {
   id: string;
@@ -87,6 +95,9 @@ export type Report = {
   reactions: Reaction[];
   revised: string;
   applied: string[];
+  source?: "server";
+  model?: string;
+  rulesVersion?: string;
 };
 export type DemoState = {
   version: 1;
@@ -234,6 +245,39 @@ export const personas: Persona[] = [
     budget: "Medium sensitivity",
     color: "peach",
     initials: "A",
+  },
+  {
+    id: "trend",
+    name: "Raisa",
+    role: "Trend follower",
+    age: "18–24",
+    location: "Chattogram",
+    need: "Current styles, relevant product variants, and evidence the item matches a trend; checks social appeal before committing",
+    budget: "Medium sensitivity",
+    color: "rose",
+    initials: "R",
+  },
+  {
+    id: "genz",
+    name: "Maya",
+    role: "Digital-native Gen Z",
+    age: "18–24",
+    location: "Dhaka",
+    need: "Mobile-friendly product details, useful creator demonstrations, and a smooth digital ordering experience; researches usability before buying",
+    budget: "Medium sensitivity",
+    color: "lavender",
+    initials: "M",
+  },
+  {
+    id: "traditional",
+    name: "Karim",
+    role: "Old-school buyer",
+    age: "45–60",
+    location: "Khulna",
+    need: "Plain-language details, a phone number or physical shop address, and personal help placing an order; prefers familiar buying steps",
+    budget: "Medium sensitivity",
+    color: "mint",
+    initials: "K",
   },
 ];
 export const posts: Post[] = products.map((p, i) => ({

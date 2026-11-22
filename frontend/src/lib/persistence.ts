@@ -107,7 +107,7 @@ function reaction(v: unknown): boolean {
     strings(v, ["comment", "reason", "positive", "question"])
   );
 }
-function report(v: unknown): boolean {
+export function validReport(v: unknown): boolean {
   return (
     object(v) &&
     strings(v, ["id", "title", "revised"]) &&
@@ -130,13 +130,14 @@ export function validWorkspace(v: unknown): v is DemoState {
   return (
     identifiedList(v.products, product) &&
     identifiedList(v.posts, post) &&
-    identifiedList(v.reports, report) &&
+    identifiedList(v.reports, validReport) &&
     strings(v.profile, ["name", "email"]) &&
     typeof v.signedIn === "boolean" &&
     typeof v.draft.productId === "string" &&
     post(v.draft.post) &&
     audience(v.draft.audience) &&
     identifiedList(v.draft.personas, persona) &&
+    (v.draft.availablePersonas === undefined || identifiedList(v.draft.availablePersonas, persona)) &&
     language(v.draft.language) &&
     typeof v.draft.failOne === "boolean" &&
     [0, 1, 2].includes(Number(v.draft.step)) &&

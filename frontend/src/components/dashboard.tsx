@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { useDemo } from "@/lib/store";
 import { dateLabel, overall, recommendations } from "@/lib/demo-data";
+import { reportInsights } from "@/lib/report-insights";
 import { CountUp, useCountUpProgress } from "./count-up";
 import {
   Avatar,
@@ -18,9 +19,10 @@ export function Dashboard() {
   const countProgress = useCountUpProgress();
   const { profile, reports, products } = useDemo();
   const latest = reports[0];
-  const average = reports.length
+  const completed = reports.flatMap((report) => report.reactions.filter((reaction) => reaction.status === "complete"));
+  const average = completed.length
     ? Math.round(
-        reports.reduce((s, r) => s + overall(r, 4), 0) / reports.length,
+        completed.reduce((sum, reaction) => sum + reaction.scores[4], 0) / completed.length,
       )
     : 0;
   return (
@@ -82,6 +84,7 @@ export function Dashboard() {
             unit: "/100",
             icon: "shield",
             sub: "Across completed reactions",
+            unavailable: !completed.length,
           },
           {
             label: "Buyer perspectives",
@@ -107,12 +110,12 @@ export function Dashboard() {
               <Icon name={s.icon} size={18} />
             </div>
             <div className="stat-value">
-              <CountUp
+              {s.unavailable ? "—" : <CountUp
                 value={s.value}
                 progress={countProgress}
                 padStart={s.padStart}
-              />
-              <small>{s.unit}</small>
+              />}
+              {!s.unavailable && <small>{s.unit}</small>}
             </div>
             <p>{s.sub}</p>
           </article>
@@ -145,15 +148,15 @@ export function Dashboard() {
                     </span>
                   </div>
                   <Badge tone={overall(r) >= 75 ? "green" : "amber"}>
-                    {overall(r) >= 75
+                    {reportInsights(r).score === null ? "Needs attention" : reportInsights(r).failed ? "Partial results" : overall(r) >= 75
                       ? "Promising interest"
                       : "Room to improve"}
                   </Badge>
                   <div className="recent-score">
                     <strong>
-                      <CountUp value={overall(r)} progress={countProgress} />
+                      {reportInsights(r).score === null ? "—" : <CountUp value={overall(r)} progress={countProgress} />}
                     </strong>
-                    <small>/100</small>
+                    {reportInsights(r).score !== null && <small>/100</small>}
                   </div>
                   <Icon name="chevron" size={16} />
                 </Link>
@@ -175,10 +178,10 @@ export function Dashboard() {
           </div>
           {latest ? (
             <>
-              <ScoreRing score={overall(latest)} progress={countProgress} />
-              <h3>Virality Score</h3>
+              {reportInsights(latest).score !== null && <ScoreRing score={overall(latest)} progress={countProgress} />}
+              <h3>{reportInsights(latest).score === null ? "Assessment needs attention" : "Overall persona fit"}</h3>
               <p>
-                {recommendations(latest)[0]?.detail ||
+                {reportInsights(latest).score === null ? "No perspectives finished. Open the report to review next steps." : recommendations(latest)[0]?.detail ||
                   "Review how each buyer responds to your post."}
               </p>
               <Link className="text-link" href={`/reports/${latest.id}`}>
@@ -200,8 +203,7 @@ export function Dashboard() {
       <div className="workspace-demo-note">
         <Icon name="info" size={17} />
         <p>
-          You’re exploring a demo workspace. Products and reports are saved in
-          this browser. All scores and reactions are illustrative placeholders.
+          Products and simulation results are saved to your account. Buyer reactions are fictional AI assessments and do not predict sales or reach.
         </p>
       </div>
     </>

@@ -158,7 +158,7 @@ export function Settings() {
           </button>
           <Notice>
             Clearing browser data removes local simulation drafts and demo reports.
-            Your server products, images, and post versions are preserved.
+            Your server products, images, post versions, and simulation reports are preserved.
           </Notice>
           <div className="settings-row">
             <div>
@@ -176,7 +176,7 @@ export function Settings() {
       </div>
       <Notice>
         Profile updates and password recovery are pending backend support.
-        Simulation results, AI generation, and report exports are previews.
+        Simulation results are saved to your account. Buyer reactions are fictional and should be used as guidance.
       </Notice>
       {reset && (
         <Modal

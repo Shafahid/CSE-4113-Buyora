@@ -2,7 +2,9 @@
 import Link from "next/link";
 import { useState } from "react";
 import { Report, dateLabel, dimensions, overall } from "@/lib/demo-data";
-import { download, updateDemo, useDemo } from "@/lib/store";
+import { download, updateDemo, useDemo, useWorkspace, removeSimulation } from "@/lib/store";
+import { finishedRun } from "@/lib/simulation-api";
+import { errorMessage } from "@/lib/api-client";
 import { comparisonSelection } from "@/lib/workflow";
 import {
   Badge,
@@ -19,7 +21,10 @@ import {
 } from "./ui";
 
 export function History() {
-  const { reports } = useDemo();
+  const { data: { reports }, runs } = useWorkspace();
+  const active = runs.filter((run) => !finishedRun(run));
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
   const [query, setQuery] = useState("");
   const [platform, setPlatform] = useState("All platforms");
   const [sort, setSort] = useState("Newest first");
@@ -56,6 +61,13 @@ export function History() {
           New simulation
         </ButtonLink>
       </PageHeading>
+      {!!active.length && <section className="panel" style={{ padding: 20, marginBottom: 24 }}>
+        <h2>Simulations in progress</h2>
+        {active.map((run) => <div className="row spread" key={run.id} style={{ paddingBlock: 12 }}>
+          <span>{run.completed} of {run.total} perspectives completed · {run.status}</span>
+          <Link className="button secondary small-button" href={`/simulate?run=${run.id}`}>View progress</Link>
+        </div>)}
+      </section>}
       <section className="panel">
         <div className="history-toolbar">
           <label className="search-input">
@@ -134,12 +146,12 @@ export function History() {
                     <td>
                       <span className="row tight">
                         <Icon name="people" size={15} />
-                        {r.reactions.length}
+                        {r.reactions.filter((x) => x.status === "complete").length} / {r.reactions.length} complete
                       </span>
                     </td>
                     <td>
-                      <strong className="table-score">{overall(r)}</strong>
-                      <span className="muted">/100</span>
+                      <strong className="table-score">{r.reactions.some((x) => x.status === "complete") ? overall(r) : "—"}</strong>
+                      {r.reactions.some((x) => x.status === "complete") && <span className="muted">/100</span>}
                     </td>
                     <td>
                       <Badge
@@ -150,7 +162,7 @@ export function History() {
                         }
                       >
                         {r.reactions.some((x) => x.status === "failed")
-                          ? "Partial results"
+                          ? r.reactions.some((x) => x.status === "complete") ? "Partial results" : "Needs attention"
                           : "Completed"}
                       </Badge>
                     </td>
@@ -192,16 +204,17 @@ export function History() {
           <span>
             {list.length} of {reports.length} simulations
           </span>
-          <span>Saved in this browser</span>
+          <span>Reports saved to your account; older demos stay in this browser</span>
         </div>
       </section>
       {remove && (
         <Modal title="Remove this report?" onClose={() => setRemove(null)}>
           <p>
             The simulation for “{remove.title}” will be removed from this
-            browser. Products and promotional posts are kept.
+            {remove.source === "server" ? "account, including its cached result. A later simulation with the same inputs will call the model again." : "browser."} Products and promotional posts are kept.
           </p>
           <div className="modal-actions">
+            {deleteError && <p role="alert">{deleteError}</p>}
             <button
               className="button secondary"
               onClick={() => setRemove(null)}
@@ -210,16 +223,25 @@ export function History() {
             </button>
             <button
               className="button danger"
-              onClick={() => {
+              disabled={deleting}
+              onClick={async () => {
+                setDeleting(true); setDeleteError("");
+                if (remove.source === "server") {
+                  try { await removeSimulation(remove.id); setRemove(null); toast("Report removed from your account"); }
+                  catch (error) { setDeleteError(errorMessage(error)); }
+                  finally { setDeleting(false); }
+                  return;
+                }
                 updateDemo((s) => ({
                   ...s,
                   reports: s.reports.filter((r) => r.id !== remove.id),
                 }));
                 setRemove(null);
                 toast("Report removed");
+                setDeleting(false);
               }}
             >
-              Remove report
+              {deleting ? "Removing…" : "Remove report"}
             </button>
           </div>
         </Modal>

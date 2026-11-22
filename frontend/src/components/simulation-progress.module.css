@@ -1,0 +1,29 @@
+.progress { padding: 28px; max-width: 1000px; margin-inline: auto; }
+.heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.heading h1 { font-size: 26px; line-height: 1.25; margin: 0 0 10px; }
+.heading p, .identity p, .footer p { color: var(--secondary); font-size: 14px; line-height: 1.55; margin: 0; }
+.elapsed { color: var(--secondary); white-space: nowrap; font-size: 13px; font-variant-numeric: tabular-nums; }
+.meter { margin-top: 24px; height: 8px; border-radius: 8px; overflow: hidden; background: var(--muted-surface); }
+.meter span { display: block; height: 100%; background: var(--accent, #2671ba); transition: width 300ms; }
+.caption { display: flex; justify-content: space-between; gap: 16px; font-size: 13px; margin-top: 10px; font-variant-numeric: tabular-nums; color: var(--secondary); }
+.caption strong { color: var(--text); }
+.update { margin: 10px 0 0; color: var(--secondary); font-size: 12px; }
+.people { margin-top: 24px; }
+.person { display: flex; gap: 16px; padding-block: 18px; border-top: 1px solid var(--border, #e5e7eb); }
+.identity { min-width: 0; flex: 1; }
+.name { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 6px; }
+.name h2 { font-size: 16px; margin: 0; }
+.identity blockquote { margin: 10px 0 0; font-size: 14px; line-height: 1.55; overflow-wrap: anywhere; }
+.identity .activity { margin-top: 10px; color: var(--text); }
+.dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: currentColor; margin-right: 7px; animation: working 1.5s ease-in-out infinite; }
+.footer { display: grid; gap: 16px; padding-top: 20px; border-top: 1px solid var(--border, #e5e7eb); }
+@keyframes working { 50% { opacity: .35; } }
+@media (prefers-reduced-motion: reduce) { .dot { animation: none; } .meter span { transition: none; } }
+@media (max-width: 640px) {
+  .progress { padding: 18px; }
+  .heading { flex-direction: column; gap: 10px; }
+  .heading h1 { font-size: 22px; }
+  .person { gap: 12px; }
+  .footer :global(.row) { flex-wrap: wrap; }
+  .footer :global(.button) { min-height: 44px; }
+}

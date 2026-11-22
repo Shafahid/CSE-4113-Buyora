@@ -8,7 +8,17 @@ from sqlalchemy import MetaData, Table, delete, func, inspect, select
 from app.api.routes.auth import check_origin, get_current_user
 from app.api.routes.products import owned_product
 from app.db.session import DbSession
-from app.models import Post, PostVersion, Product, Simulation, SimulationPersona, User
+from app.models import (
+    PersonaEvaluation,
+    Post,
+    PostVersion,
+    Product,
+    Simulation,
+    SimulationCache,
+    SimulationPersona,
+    SimulationRun,
+    User,
+)
 
 router = APIRouter(tags=["promotional posts"])
 CurrentUser = Annotated[User, Depends(get_current_user)]
@@ -207,6 +217,12 @@ def delete_post(post_id: int, user: CurrentUser, db: DbSession, _: Csrf):
     persona_ids = select(SimulationPersona.id).where(
         SimulationPersona.simulation_id.in_(simulation_ids)
     )
+    run_ids = select(SimulationRun.id).where(
+        SimulationRun.simulation_id.in_(simulation_ids)
+    )
+    db.execute(delete(SimulationCache).where(SimulationCache.run_id.in_(run_ids)))
+    db.execute(delete(PersonaEvaluation).where(PersonaEvaluation.run_id.in_(run_ids)))
+    db.execute(delete(SimulationRun).where(SimulationRun.id.in_(run_ids)))
     # Some deployments have this unmanaged table; reflect it only if present.
     connection = db.connection()
     schema = None if connection.dialect.name == "sqlite" else "public"

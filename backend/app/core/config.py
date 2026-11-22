@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import Literal
 
-from pydantic import PositiveInt, SecretStr, field_validator, model_validator
+from pydantic import Field, PositiveInt, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy.engine import URL, make_url
 from sqlalchemy.exc import ArgumentError
@@ -46,6 +46,17 @@ class Settings(BaseSettings):
     session_cookie_secure: bool = False
     session_cookie_samesite: Literal["lax", "strict", "none"] = "lax"
     session_lifetime_seconds: PositiveInt = 604800
+    token_bd_api_url: str | None = None
+    token_bd_api_key: SecretStr | None = None
+    token_bd_model: str | None = None
+    llm_provider: str = "openai"
+    llm_json_mode: bool = True
+    llm_timeout_seconds: int = Field(default=45, ge=5, le=180)
+    llm_max_output_tokens: int = Field(default=4096, ge=256, le=16384)
+    llm_max_attempts: int = Field(default=2, ge=1, le=3)
+    simulation_max_personas: int = Field(default=12, ge=2, le=32)
+    simulation_concurrency: int = Field(default=3, ge=1, le=8)
+    simulation_worker_enabled: bool = True
 
     @model_validator(mode="after")
     def validate_cookie(self):

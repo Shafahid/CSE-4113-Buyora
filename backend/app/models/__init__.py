@@ -5,6 +5,7 @@ from app.models.product import Product
 from app.models.product_image import ProductImage
 from app.models.simulation import Simulation
 from app.models.simulation_persona import SimulationPersona
+from app.models.simulation_run import PersonaEvaluation, SimulationCache, SimulationRun
 
 __all__ = [
     "AuthSession",
@@ -17,4 +18,7 @@ __all__ = [
     "PostVersion",
     "Simulation",
     "SimulationPersona",
+    "SimulationRun",
+    "PersonaEvaluation",
+    "SimulationCache",
 ]
