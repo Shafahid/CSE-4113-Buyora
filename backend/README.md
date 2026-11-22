@@ -304,3 +304,21 @@ starts. All write requests require a trusted Origin.
 
 Alembic revision 0007 checks and reuses compatible public.simulation_personas
 tables or creates them when absent. It does not move existing rows.
+
+
+### Saved simulation execution
+
+Migration `0009_simulation_execution` adds durable runs, per-persona evaluations and cache pointers in the `buyora` schema. Configure `TOKEN_BD_API_URL`, `TOKEN_BD_API_KEY`, `TOKEN_BD_MODEL` and optionally `LLM_PROVIDER`. LiteLLM configures the provider; LangGraph dispatches selected profiles with bounded concurrency. `LLM_MAX_OUTPUT_TOKENS` defaults to 4096. Never put these credentials in frontend environment variables.
+
+- `GET /simulation-options`: available profiles and selection limits.
+- `POST /simulation-runs`: start or reuse a run. A seller-scoped request UUID is idempotent; `fresh: true` explicitly requests new assessments.
+- `POST /simulation-runs/preview`: check for matching saved inputs without saving or calling the model. Includes the unsaved `post` editor fields and owned `product_id` alongside run inputs. A changed editor value prevents a match.
+- `GET /simulation-runs` and `GET /simulation-runs/{id}`: owned saved runs and reports.
+- `GET /simulation-runs/{id}/progress`: evaluation progress without the duplicated full report payload.
+- `POST /simulation-runs/{id}/retry`: retry one eligible failed evaluation by `evaluation_id`.
+- `POST /simulation-runs/{id}/retry-failed`: retry eligible missing perspectives together using a `request_id` UUID. Completed evaluations are untouched; durable operation history prevents a delayed replay from queuing work again after completion.
+- `PATCH /simulation-runs/{id}/report`: save caption annotations; `DELETE` removes a finished report.
+
+Writes require an allowed Origin; every read and write checks seller ownership. Configuration errors and the six-attempt limit block immediate retries. Report coverage is stored with completed results; scores are aggregated only from completed verdicts. Preview and progress do not call the model. A new run or explicitly requested retry can call it.
+
+The worker runs through FastAPI lifespan when `SIMULATION_WORKER_ENABLED` is enabled. Queued inputs and completed outputs survive restarts; uncertain in-flight calls are marked interrupted instead of silently repeated. No migration is required for the preview, compact progress or bulk-retry endpoints beyond revision 0009.

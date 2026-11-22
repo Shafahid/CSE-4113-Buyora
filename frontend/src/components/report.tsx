@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   dateLabel,
@@ -11,7 +11,10 @@ import {
   Reaction,
   Report,
 } from "@/lib/demo-data";
-import { download, updateDemo, useDemo, savePost } from "@/lib/store";
+import { download, updateDemo, useWorkspace, savePost, retrySimulation, retryFailedSimulation, saveReportChanges } from "@/lib/store";
+import { reportInsights } from "@/lib/report-insights";
+import { finishedRun } from "@/lib/simulation-api";
+import { SimulationProgress, evaluationErrors } from "./simulation-progress";
 import { errorMessage } from "@/lib/api-client";
 import {
   Avatar,
@@ -27,6 +30,7 @@ import {
   useToast,
 } from "./ui";
 import { ReactionMap } from "./reaction-map";
+import { PrintReport } from "./print-report";
 
 const tabs = [
   "Overview",
@@ -42,7 +46,8 @@ export function ReportView({
   id: string;
   initialTab?: number;
 }) {
-  const state = useDemo();
+  const { data: state, runs } = useWorkspace();
+  const run = runs.find((item) => item.id === id);
   const report = state.reports.find((r) => r.id === id);
   const [tab, setTab] = useState(initialTab);
   const [detail, setDetail] = useState<Reaction | null>(null);
@@ -51,8 +56,11 @@ export function ReportView({
   const [retrying, setRetrying] = useState("");
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
+  const retryRequest = useRef<string | null>(null);
+  const retryPending = useRef(false);
   const router = useRouter();
   const toast = useToast();
+  if (run && !finishedRun(run)) return <SimulationProgress id={id} />;
   if (!report)
     return (
       <>
@@ -62,7 +70,7 @@ export function ReportView({
         />
         <EmptyState
           title="Let’s find another perspective"
-          description="The report may have been removed, or it was saved in a different browser."
+          description="The report may have been removed or belong to another account. Older demo reports are available only in the browser where they were created."
         >
           <ButtonLink href="/history">View simulation history</ButtonLink>
         </EmptyState>
@@ -75,7 +83,8 @@ export function ReportView({
   const complete = r.reactions.filter((x) => x.status === "complete");
   const failed = r.reactions.filter((x) => x.status === "failed");
   const ranking = [...complete].sort((a, b) => b.score - a.score);
-  const interest = overall(r, 0);
+  const insights = reportInsights(r);
+  const retryable = run?.evaluations.filter((item) => item.can_retry) ?? [];
   const patch = (values: Partial<Report>) =>
     updateDemo((s) => ({
       ...s,
@@ -92,12 +101,24 @@ export function ReportView({
         personas: r.reactions.map((x) => x.persona),
         language: r.language,
         step: 0,
+        fresh: true,
+        activeRunId: undefined,
+        runRequestId: undefined,
+        requestSignature: undefined,
       },
     }));
     router.push("/simulate");
   };
   async function retry(reaction: Reaction) {
+    if (retryPending.current) return;
+    retryPending.current = true;
     setRetrying(reaction.persona.id);
+    if (r.source === "server" && reaction.evaluationId) {
+      try { await retrySimulation(r.id, reaction.evaluationId); }
+      catch (error) { toast(errorMessage(error)); }
+      finally { setRetrying(""); retryPending.current = false; }
+      return;
+    }
     await new Promise((resolve) => setTimeout(resolve, 650));
     updateDemo((s) => ({
       ...s,
@@ -115,9 +136,22 @@ export function ReportView({
       ),
     }));
     setRetrying("");
+    retryPending.current = false;
     toast("Persona evaluation completed; previous results preserved");
   }
-  function generate() {
+  async function retryMissing() {
+    if (retryPending.current) return;
+    retryPending.current = true;
+    setRetrying("all");
+    retryRequest.current ??= crypto.randomUUID();
+    try {
+      await retryFailedSimulation(r.id, retryRequest.current);
+      retryRequest.current = null;
+      toast("Missing perspectives queued. Completed results are preserved.");
+    } catch (error) { toast(errorMessage(error)); }
+    finally { setRetrying(""); retryPending.current = false; }
+  }
+  async function generate() {
     const additions = recs
       .filter((x) => checked.includes(x.id))
       .map((x) => x.addition);
@@ -134,6 +168,10 @@ export function ReportView({
       .filter(Boolean)
       .join("\n\n");
     patch({ revised: body, applied: checked });
+    if (r.source === "server") {
+      try { await saveReportChanges(r.id, body, checked); }
+      catch (error) { setSaveError(errorMessage(error)); return; }
+    }
     toast(
       "Revised caption created. Review bracketed details before publishing.",
     );
@@ -143,6 +181,7 @@ export function ReportView({
     try {
       const existing = state.posts.find((post) => post.id === r.post.id);
       if (!existing) throw new Error("The original post is no longer available. Create a new post from the Products screen.");
+      if (r.source === "server") await saveReportChanges(r.id, r.revised, checked);
       await savePost({ ...existing, body: r.revised });
       toast("Revised caption saved as a separate post version");
     } catch (error) { setSaveError(errorMessage(error)); }
@@ -167,7 +206,7 @@ export function ReportView({
                 {
                   ...r,
                   disclosure:
-                    "Illustrative frontend demo. These are simulated reactions, not actual customer feedback or guaranteed predictions.",
+                    "Fictional buyer perspectives. These are simulated reactions, not actual customer feedback or guaranteed predictions.",
                 },
                 null,
                 2,
@@ -180,24 +219,30 @@ export function ReportView({
         </button>
         <button className="button secondary" onClick={() => window.print()}>
           <Icon name="file" size={16} />
-          Print
+          Print / Save PDF
         </button>
         <button className="button primary" onClick={() => rerun()}>
           <Icon name="refresh" size={16} />
-          Run again
+          Run fresh simulation
         </button>
       </PageHeading>
       <Notice>
         {r.language === "bn"
           ? "এটি নমুনা সিমুলেশন। প্রতিক্রিয়া, স্কোর ও পরামর্শ আসল ক্রেতার মতামত বা নিশ্চিত পূর্বাভাস নয়।"
-          : "A simulated perspective, not a prediction. These are illustrative demo scores and fictional buyer reactions, not actual customer feedback."}
+          : r.source === "server"
+            ? "Saved AI-generated perspectives. These are fictional buyer reactions, not actual customer feedback or guaranteed sales predictions."
+            : "A simulated perspective, not a prediction. These are illustrative demo scores and fictional buyer reactions, not actual customer feedback."}
       </Notice>
-      {failed.length > 0 && (
-        <Notice tone="warning">
-          {failed.length} persona evaluation didn’t finish. Completed results
-          are saved. Retry the missing perspective from Audience insights.
-        </Notice>
-      )}
+      <section className="report-coverage panel" aria-label="Assessment coverage">
+        <div>
+          <strong>{complete.length} of {r.reactions.length} perspectives completed</strong>
+          <p>{failed.length ? `${failed.length} missing. Completed results are saved and excluded failures do not lower scores.` : "All selected personas are included in this assessment."}</p>
+          {failed.length > retryable.length && r.source === "server" && <p>Some missing perspectives need your workspace owner’s help or a fresh simulation. See Audience insights for each next step.</p>}
+        </div>
+        {retryable.length > 0 && <button className="button primary" disabled={!!retrying} onClick={retryMissing}>
+          {retrying === "all" ? "Queueing missing perspectives…" : `Retry missing perspectives (${retryable.length})`}
+        </button>}
+      </section>
       <div className="report-tabs" role="tablist" aria-label="Report sections">
         {tabs.map((t, i) => (
           <button
@@ -241,29 +286,21 @@ export function ReportView({
                   The bigger picture
                 </Badge>
                 <h2>
-                  {interest >= 75
-                    ? "Your post sparks interest."
-                    : "Your post has room to grow."}
-                  <br />
-                  <span>
-                    {overall(r, 4) < 65
-                      ? "A little reassurance can go a long way."
-                      : "Give buyers a clear next step."}
-                  </span>
+                  {insights.title}
                 </h2>
                 <p>
-                  {complete.length} perspectives explored. {recs.length}{" "}
-                  practical improvements to consider.
-                  <br />
-                  {ranking[0]
-                    ? `Your strongest sample match: ${ranking[0].persona.role.toLowerCase()}.`
-                    : "Complete an evaluation to see audience rankings."}
+                  {insights.explanation}
                 </p>
+                {insights.weakest && insights.concern && <div className="report-main-concern">
+                  <strong>Start with {insights.weakest.label.toLowerCase()} · {insights.weakest.score}/100</strong>
+                  <p>{insights.concern.persona.name} asks: “{insights.concern.question}”</p>
+                  <button className="text-link" onClick={() => setDetail(insights.concern)}>See this buyer’s reasoning <Icon name="arrow" size={15} /></button>
+                </div>}
                 <button className="text-link" onClick={() => setTab(4)}>
                   See what you can improve <Icon name="arrow" size={16} />
                 </button>
               </div>
-              <ScoreRing score={overall(r)} large />
+              {insights.score !== null ? <ScoreRing score={insights.score} large /> : <span className="unavailable-score">Score unavailable</span>}
             </section>
             <div className="stats-grid report-stats">
               {[
@@ -298,8 +335,8 @@ export function ReportView({
                     <Icon name={s.icon} size={18} />
                   </div>
                   <div className="stat-value">
-                    {s.value}
-                    <small>/100</small>
+                    {complete.length ? s.value : "—"}
+                    {complete.length > 0 && <small>/100</small>}
                   </div>
                   <div className="tiny-bar">
                     <span style={{ width: `${s.value}%` }} />
@@ -320,6 +357,7 @@ export function ReportView({
                   </button>
                 </div>
                 <div className="ranking-list">
+                  {!ranking.length && <p className="report-empty-ranking">No completed perspectives yet. Review the missing evaluations in Audience insights.</p>}
                   {ranking.slice(0, 4).map((x, i) => (
                     <button
                       key={x.persona.id}
@@ -346,8 +384,8 @@ export function ReportView({
               <section className="panel concern-panel">
                 <div className="panel-heading">
                   <div>
-                    <h2>A little more clarity on…</h2>
-                    <p>Questions your post could answer.</p>
+                    <h2>Checks before you publish</h2>
+                    <p>Suggestions based on the saved caption and product details.</p>
                   </div>
                   <Icon name="chat" size={20} />
                 </div>
@@ -450,9 +488,11 @@ export function ReportView({
                         <Icon name="refresh" size={25} />
                         <h3>This perspective needs another moment.</h3>
                         <p>
-                          The demo intentionally interrupted this evaluation.
-                          Completed evaluations will stay as they are.
+                          {r.source === "server" ? evaluationErrors[x.errorCode ?? ""] ?? "This assessment could not finish. Completed perspectives are saved." : "The demo intentionally interrupted this evaluation. Completed evaluations will stay as they are."}
                         </p>
+                        {r.source === "server" && !run?.evaluations.find((item) => item.id === x.evaluationId)?.can_retry
+                          ? <p>{x.errorCode === "configuration_changed" ? "Use Run fresh simulation above to evaluate with the updated service." : "If service settings have been fixed, start a fresh simulation. Completed results remain in this report."}</p>
+                          :
                         <button
                           className="button secondary"
                           disabled={!!retrying}
@@ -461,7 +501,7 @@ export function ReportView({
                           {retrying === x.persona.id
                             ? "Retrying…"
                             : "Retry evaluation"}
-                        </button>
+                        </button>}
                       </div>
                     )}
                   </article>
@@ -469,9 +509,7 @@ export function ReportView({
             </div>
             <Notice>
               Overall fit is the arithmetic mean of interest, relevance, value,
-              price fit, trust, clarity, and purchase intent. Placeholder scores
-              are generated from caption completeness and sample persona
-              preferences.
+              price fit, trust, clarity, and purchase intent. {r.source === "server" ? "Scores come from independent model assessments using the saved input and rubric. Failed evaluations are excluded." : "Placeholder scores are generated from caption completeness and sample persona preferences."}
             </Notice>
           </>
         )}
@@ -481,12 +519,12 @@ export function ReportView({
               <div>
                 <h2>Watch buyer reactions spread</h2>
                 <p>
-                  Play three rounds of fictional buyer activity. Select a viewer
-                  to inspect their reaction, or drag the canvas to explore.
+                  An illustrative animation based on completed persona scores. Its 60 viewers are fictional extensions of those personas, not 60 independent AI evaluations or a forecast of reach.
+                  Play three rounds, select a viewer, or drag the canvas to explore.
                 </p>
               </div>
             </div>
-            <ReactionMap key={r.id} reactions={r.reactions} />
+            {complete.length ? <ReactionMap key={r.id} reactions={r.reactions} /> : <p>Complete at least one perspective to explore the spread illustration.</p>}
           </section>
         )}
         {tab === 3 && (
@@ -589,7 +627,7 @@ export function ReportView({
                 Create revised caption
               </button>
               <p className="quiet-note">
-                Template-based demo. Your original post stays unchanged.
+                Built from your supplied product details. Review every claim before publishing. Your original post stays unchanged.
               </p>
             </section>
             <section className="panel revised-panel">
@@ -617,6 +655,12 @@ export function ReportView({
                     Confirm all delivery, policy, and payment claims.
                   </Notice>
                   <div className="revision-actions">
+                    {r.source === "server" && <button className="button secondary" disabled={saving} onClick={async () => {
+                      setSaving(true); setSaveError("");
+                      try { await saveReportChanges(r.id, r.revised, checked); toast("Caption draft saved to your report"); }
+                      catch (error) { setSaveError(errorMessage(error)); }
+                      finally { setSaving(false); }
+                    }}>Save caption draft</button>}
                     <button
                       className="button secondary"
                       onClick={async () => {
@@ -698,6 +742,7 @@ export function ReportView({
               <dd>{detail.question}</dd>
             </div>
           </dl>
+          {!!detail.evidence?.length && <div><h4>Evidence from the saved input</h4><ul>{detail.evidence.map((quote, index) => <li key={index}>“{quote}”</li>)}</ul></div>}
           <Notice>
             This explanation describes a sample persona response, not a real
             buyer.
@@ -705,69 +750,5 @@ export function ReportView({
         </Modal>
       )}
     </div>
-  );
-}
-function PrintReport({ report: r }: { report: Report }) {
-  return (
-    <article className="print-report">
-      <h1>Buyora · Simulation report</h1>
-      <h2>{r.title}</h2>
-      <p>
-        {dateLabel(r.createdAt)} · {r.post.platform}
-      </p>
-      <p>
-        Illustrative demo. Scores and fictional reactions are not actual
-        customer feedback or guaranteed predictions.
-      </p>
-      <h3>Original caption</h3>
-      <p>{r.post.body}</p>
-      <h3>Summary · {overall(r)}/100</h3>
-      <table>
-        <thead>
-          <tr>
-            <th>Persona</th>
-            {dimensions.map((d) => (
-              <th key={d}>{d}</th>
-            ))}
-            <th>Overall</th>
-          </tr>
-        </thead>
-        <tbody>
-          {r.reactions.map((x) => (
-            <tr key={x.persona.id}>
-              <td>{x.persona.role}</td>
-              {x.scores.map((s, i) => (
-                <td key={i}>{x.status === "complete" ? s : "Incomplete"}</td>
-              ))}
-              <td>{x.status === "complete" ? x.score : "Incomplete"}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      <h3>Buyer reactions</h3>
-      {r.reactions
-        .filter((x) => x.status === "complete")
-        .map((x) => (
-          <div key={x.persona.id}>
-            <h4>{x.persona.role}</h4>
-            <p>{x.comment}</p>
-            <p>{x.reason}</p>
-          </div>
-        ))}
-      <h3>Recommendations</h3>
-      <ul>
-        {recommendations(r).map((x) => (
-          <li key={x.id}>
-            <strong>{x.title}:</strong> {x.detail}
-          </li>
-        ))}
-      </ul>
-      {r.revised && (
-        <>
-          <h3>Revised caption</h3>
-          <p style={{ whiteSpace: "pre-wrap" }}>{r.revised}</p>
-        </>
-      )}
-    </article>
   );
 }

@@ -7,6 +7,8 @@ import { currentUser, type AuthUser } from "./auth-api";
 import { ApiError, errorMessage } from "./api-client";
 import { catalogApi } from "./catalog-api";
 import { productFromApi, productToApi, postFromApi, postToApi } from "./api-adapters";
+import { simulationApi, finishedRun } from "./simulation-api";
+import type { ApiSchemas } from "./api-schema";
 
 const store = createWorkspaceState(() => localStorage);
 let epoch = 0;
@@ -31,9 +33,10 @@ export async function loadWorkspace() {
     const revision = catalogRevision;
     const groups = await Promise.all([catalogApi.products("active"), catalogApi.products("archived")]);
     const ids = groups.flat().map((product) => String(product.id));
-    const [products, postGroups] = await Promise.all([
+    const [products, postGroups, runs] = await Promise.all([
       Promise.all(ids.map(async (id) => productFromApi(await catalogApi.product(id)))),
       Promise.all(ids.map((id) => catalogApi.posts(id))),
+      simulationApi.runs(),
     ]);
     const posts = await Promise.all(postGroups.flat().map(async (post) => {
       const [detail, versions] = await Promise.all([catalogApi.post(String(post.id)), catalogApi.versions(String(post.id))]);
@@ -44,6 +47,7 @@ export async function loadWorkspace() {
     if (revision !== catalogRevision) return;
     store.warn("");
     store.catalog(products, posts);
+    store.runs(runs);
   } catch (error) {
     if (version !== loadingVersion) return;
     if (error instanceof ApiError && error.status === 401) clearSession();
@@ -106,6 +110,7 @@ export async function deleteProduct(id: string) {
   catalogRevision++;
   const { products, posts } = store.getSnapshot().data;
   store.catalog(products.filter((p) => p.id !== id), posts.filter((p) => p.productId !== id));
+  await loadWorkspace();
 }
 export async function loadPostHistory(id: string) {
   const guard = accountGuard();
@@ -143,6 +148,42 @@ export async function deletePost(id: string) {
   catalogRevision++;
   const { products, posts } = store.getSnapshot().data;
   store.catalog(products, posts.filter((p) => p.id !== id));
+  await loadWorkspace();
+}
+export async function startSimulation(data: ApiSchemas["RunCreate"]) {
+  const guard = accountGuard();
+  const run = await simulationApi.start(data); guard(); catalogRevision++; store.run(run); return run;
+}
+export async function refreshSimulation(id: string, signal?: AbortSignal) {
+  const guard = accountGuard();
+  const run = await simulationApi.run(id, signal); guard(); catalogRevision++; store.run(run); return run;
+}
+export async function refreshSimulationProgress(id: string, signal?: AbortSignal) {
+  const guard = accountGuard();
+  const progress = await simulationApi.progress(id, signal); guard();
+  // Publish terminal status only with its finished report. Otherwise a report
+  // page can unmount its poller and abort the final fetch while showing old data.
+  if (finishedRun({ ...progress, report: null })) return refreshSimulation(id, signal);
+  const previous = store.getSnapshot().runs.find((run) => run.id === id);
+  const run = { ...progress, report: previous?.report ?? null };
+  catalogRevision++; store.run(run); return run;
+}
+export async function retryFailedSimulation(id: string, requestId: string) {
+  const guard = accountGuard();
+  const run = await simulationApi.retryFailed(id, requestId); guard();
+  catalogRevision++; store.run(run); return run;
+}
+export async function retrySimulation(id: string, evaluationId: number) {
+  const guard = accountGuard();
+  const run = await simulationApi.retry(id, evaluationId); guard(); catalogRevision++; store.run(run); return run;
+}
+export async function saveReportChanges(id: string, revised: string, applied: string[]) {
+  const guard = accountGuard();
+  const run = await simulationApi.saveReport(id, revised, applied); guard(); catalogRevision++; store.run(run); return run;
+}
+export async function removeSimulation(id: string) {
+  const guard = accountGuard();
+  await simulationApi.remove(id); guard(); catalogRevision++; store.removeRun(id);
 }
 let subscribers = 0;
 function sync(event: StorageEvent) {
@@ -171,7 +212,7 @@ export function updateDemo(update: (current: DemoState) => DemoState) {
   store.updateLocal(update);
 }
 export function resetDemo() {
-  updateDemo((state) => ({ ...state, reports: [], draft: { ...structuredClone(initialDraft), productId: "", post: { ...structuredClone(initialDraft.post), id: "", productId: "" } } }));
+  updateDemo((state) => ({ ...state, reports: state.reports.filter((r) => r.source === "server"), draft: { ...structuredClone(initialDraft), productId: "", post: { ...structuredClone(initialDraft.post), id: "", productId: "" } } }));
 }
 export function download(
   name: string,

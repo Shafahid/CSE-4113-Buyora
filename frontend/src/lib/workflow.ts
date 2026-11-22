@@ -12,11 +12,12 @@ export function postError(draft: Draft, product: Product | undefined): string {
 export function simulationError(
   draft: Draft,
   product: Product | undefined,
+  maxPersonas = 8,
 ): string {
   const invalidPost = postError(draft, product);
   if (invalidPost) return invalidPost;
-  if (draft.personas.length < 2 || draft.personas.length > 8)
-    return "Choose between 2 and 8 buyer personas.";
+  if (draft.personas.length < 2 || draft.personas.length > maxPersonas)
+    return `Choose between 2 and ${maxPersonas} buyer personas.`;
   if (new Set(draft.personas.map((p) => p.id)).size !== draft.personas.length)
     return "Each buyer persona must have its own identity. Regenerate the sample set.";
   if (

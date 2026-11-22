@@ -7,16 +7,16 @@ import {
   Draft,
   Persona,
   Post,
-  Report,
   initialDraft,
-  makeReport,
   money,
   personas as templates,
   uid,
 } from "@/lib/demo-data";
-import { updateDemo, useWorkspace, savePost } from "@/lib/store";
+import { updateDemo, useWorkspace, savePost, startSimulation } from "@/lib/store";
+import { simulationApi, finishedRun } from "@/lib/simulation-api";
 import { errorMessage } from "@/lib/api-client";
 import { postError, simulationError } from "@/lib/workflow";
+import { personaChoices, setPersonaSelected } from "@/lib/persona-selection";
 import {
   Avatar,
   Badge,
@@ -30,10 +30,11 @@ import {
   useToast,
 } from "./ui";
 
-import { ReactionMap } from "./reaction-map";
+import { SimulationProgress } from "./simulation-progress";
+import { SimulationPreview } from "./simulation-preview";
 
 const steps = ["Product & post", "Your audience", "Buyer personas"];
-export function Simulation() {
+export function Simulation({ initialRunId }: { initialRunId?: string }) {
   const { data: state, error: storageError } = useWorkspace();
   const { draft } = state;
   const product = state.products.find(
@@ -41,19 +42,23 @@ export function Simulation() {
   );
   const [editing, setEditing] = useState<Persona | null>(null);
   const [error, setError] = useState("");
-  const [running, setRunning] = useState(false);
+  const [runId, setRunId] = useState(initialRunId ?? "");
   const [preparing, setPreparing] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const [preview, setPreview] = useState<Report | null>(null);
-  const [regenerated, setRegenerated] = useState(false);
-  const pending = useRef<{
-    draft: Draft;
-    report: Report;
-    product: NonNullable<typeof product>;
-  } | null>(null);
-  const saved = useRef(false);
+  const submitting = useRef(false);
+  const [options, setOptions] = useState<{ max_personas: number; profiles: Persona[] } | null>(null);
+  const [optionsError, setOptionsError] = useState("");
+  const catalog = options?.profiles ?? templates;
+  const choices = personaChoices(draft, catalog);
+  const maxPersonas = options?.max_personas ?? 12;
+  const selectionFull = draft.personas.length >= maxPersonas;
   const router = useRouter();
   const toast = useToast();
+  useEffect(() => {
+    let active = true;
+    simulationApi.options().then((value) => { if (active) setOptions(value); })
+      .catch((error) => { if (active) setOptionsError(errorMessage(error)); });
+    return () => { active = false; };
+  }, []);
   const patch = (value: Partial<Draft>) =>
     updateDemo((s) => ({ ...s, draft: { ...s.draft, ...value } }));
   const postPatch = (value: Partial<Post>) =>
@@ -88,105 +93,34 @@ export function Simulation() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
   async function start() {
-    const invalid = simulationError(draft, product);
+    if (submitting.current) return;
+    const invalid = simulationError(draft, product, maxPersonas);
     if (invalid || !product) {
       setError(invalid);
       return;
     }
+    submitting.current = true;
     setPreparing(true); setError("");
     const snapshot = structuredClone(draft);
     try {
       snapshot.post = await savePost(snapshot.post);
-      patch({ post: snapshot.post });
-      const report = makeReport(snapshot, product, uid(), new Date().toISOString());
-      setPreview(report);
-      pending.current = {
-        report,
-        draft: snapshot,
-        product: structuredClone(product),
-      };
-      saved.current = false;
-      setError("");
-      setProgress(0);
-      setRunning(true);
+      const signature = JSON.stringify({ postVersion: snapshot.post.latestVersionId, audience: snapshot.audience, personas: snapshot.personas, language: snapshot.language, fresh: !!snapshot.fresh });
+      const requestId = snapshot.requestSignature === signature && snapshot.runRequestId
+        ? snapshot.runRequestId : crypto.randomUUID();
+      patch({ post: snapshot.post, requestSignature: signature, runRequestId: requestId });
+      const run = await startSimulation({
+        request_id: requestId, post_version_id: Number(snapshot.post.latestVersionId),
+        audience: snapshot.audience, personas: snapshot.personas,
+        language: snapshot.language, fresh: !!snapshot.fresh,
+      });
+      patch({ activeRunId: run.id, runRequestId: undefined, requestSignature: undefined });
+      if (run.cache_hit) toast("Saved simulation reused. No new model requests were made.");
+      if (finishedRun(run)) router.push(`/reports/${run.id}`);
+      else { setRunId(run.id); router.replace(`/simulate?run=${run.id}`); }
     } catch (error) { setError(errorMessage(error)); }
-    finally { setPreparing(false); }
+    finally { submitting.current = false; setPreparing(false); }
   }
-  useEffect(() => {
-    if (!running) return;
-    window.scrollTo({ top: 0, left: 0, behavior: "instant" });
-    const timer = setInterval(
-      () => setProgress((p) => Math.min(100, p + 5)),
-      180,
-    );
-    return () => clearInterval(timer);
-  }, [running]);
-  useEffect(() => {
-    if (progress !== 100 || !pending.current || saved.current) return;
-    saved.current = true;
-    const { report } = pending.current;
-    updateDemo((s) => ({ ...s, reports: [report, ...s.reports] }));
-    router.push(`/reports/${report.id}`);
-  }, [progress, router]);
-
-  if (running)
-    return (
-      <div className="analyzing">
-        <Badge tone="blue">
-          <Icon name="spark" size={14} /> Demo simulation in progress
-        </Badge>
-        <div className="analyzing-spread">
-          <ReactionMap
-            reactions={preview?.reactions ?? []}
-            compact
-            progress={progress}
-          />
-        </div>
-        <p>
-          {progress < 30
-            ? "Preparing your product and promotional post…"
-            : progress < 60
-              ? "Exploring each buyer perspective…"
-              : progress < 85
-                ? "Organizing questions and comparison scores…"
-                : "Putting the finishing touches on your report…"}
-        </p>
-        <div
-          className="progress-track"
-          role="progressbar"
-          aria-label="Simulation progress"
-          aria-valuenow={progress}
-          aria-valuemin={0}
-          aria-valuemax={100}
-        >
-          <span style={{ width: `${progress}%` }} />
-        </div>
-        <div className="analyzing-progress">
-          <span>
-            {Math.min(
-              draft.personas.length,
-              Math.floor((progress / 100) * draft.personas.length),
-            )}{" "}
-            of {draft.personas.length} perspectives prepared
-          </span>
-          <strong>{progress}%</strong>
-        </div>
-        <Notice>
-          This demo uses local placeholder responses. No AI service is being
-          contacted.
-        </Notice>
-        <button
-          className="button secondary"
-          onClick={() => {
-            pending.current = null;
-            setRunning(false);
-            setProgress(0);
-          }}
-        >
-          Cancel and return to draft
-        </button>
-      </div>
-    );
+  if (runId) return <SimulationProgress id={runId} onBack={() => { setRunId(""); router.replace("/simulate"); }} />;
   return (
     <>
       <PageHeading
@@ -201,6 +135,8 @@ export function Simulation() {
             : "Draft saved in this browser"}
         </span>
       </PageHeading>
+      {optionsError && <Notice tone="warning">Persona options could not load: {optionsError} Reload this page to try again.</Notice>}
+      {draft.activeRunId && <Notice>Your last simulation is saved. <Link href={`/simulate?run=${draft.activeRunId}`}>Resume or open its report</Link>.</Notice>}
       <div className="wizard-steps" aria-label="Simulation steps">
         {steps.map((s, i) => (
           <div
@@ -240,7 +176,7 @@ export function Simulation() {
                   [
                     "The more context, the more useful the perspective.",
                     "Optional details help shape your buyer personas.",
-                    "Review, customize, or add personas before you begin.",
+                    "Select the buyers who should evaluate your post. You can also edit or add a persona.",
                   ][draft.step]
                 }
               </p>
@@ -466,44 +402,36 @@ export function Simulation() {
           {draft.step === 2 && (
             <>
               <div className="row spread persona-toolbar">
-                <span className="muted">
-                  {draft.personas.length} of 8 personas · minimum 2
+                <span className="muted" role="status" aria-live="polite">
+                  {draft.personas.length} selected · choose 2–{maxPersonas} personas
                 </span>
+                <div className="row tight">
                 <button
                   className="button secondary small-button"
                   onClick={() => {
-                    const next = !regenerated;
-                    setRegenerated(next);
-                    const source = next
-                      ? [...templates.slice(2), ...templates.slice(0, 2)]
-                      : templates;
-                    patch({
-                      personas: source.slice(0, 6).map((p, i) => ({
-                        ...p,
-                        location: draft.audience.location || p.location,
-                        age:
-                          draft.audience.age !== "Any age"
-                            ? draft.audience.age
-                            : p.age,
-                        need:
-                          i === 0 && draft.audience.needs
-                            ? draft.audience.needs
-                            : p.need,
-                        budget: i === 0 ? draft.audience.budget : p.budget,
-                      })),
-                    });
-                    toast(
-                      "Sample personas refreshed from your audience settings",
-                    );
+                    patch({ availablePersonas: choices, personas: choices.slice(0, maxPersonas) });
+                    setError("");
                   }}
                 >
-                  <Icon name="refresh" size={14} />
-                  Regenerate sample set
+                  {choices.length > maxPersonas ? `Select first ${maxPersonas}` : "Select all"}
                 </button>
+                <button className="button secondary small-button" disabled={!draft.personas.length}
+                  onClick={() => { patch({ availablePersonas: choices, personas: [] }); setError(""); }}>
+                  Clear selection
+                </button>
+                </div>
               </div>
+              <p className="persona-selection-help" id="persona-selection-help">
+                Only checked personas will evaluate your post. Unchecked personas stay available for another run.
+                {selectionFull && ` You have reached the ${maxPersonas}-persona limit; uncheck one to choose another.`}
+                {draft.personas.length < 2 && " Select at least two personas to continue."}
+              </p>
               <div className="persona-select-grid">
-                {draft.personas.map((p) => (
-                  <article className="persona-select-card" key={p.id}>
+                {choices.map((p) => {
+                  const selected = draft.personas.some((profile) => profile.id === p.id);
+                  const custom = !catalog.some((profile) => profile.id === p.id);
+                  return (
+                  <article className={`persona-select-card${selected ? " is-selected" : ""}`} key={p.id}>
                     <div className="row spread">
                       <Avatar persona={p} />
                       <div className="row tight">
@@ -514,11 +442,12 @@ export function Simulation() {
                         >
                           <Icon name="edit" size={15} />
                         </button>
-                        <button
+                        {custom && <button
                           className="icon-button"
-                          aria-label={`Remove ${p.name}`}
+                          aria-label={`Delete custom persona ${p.name}`}
                           onClick={() =>
                             patch({
+                              availablePersonas: choices.filter((x) => x.id !== p.id),
                               personas: draft.personas.filter(
                                 (x) => x.id !== p.id,
                               ),
@@ -526,7 +455,7 @@ export function Simulation() {
                           }
                         >
                           <Icon name="close" size={15} />
-                        </button>
+                        </button>}
                       </div>
                     </div>
                     <h3>
@@ -536,9 +465,20 @@ export function Simulation() {
                     <span className="persona-role">{p.role}</span>
                     <p>{p.need}</p>
                     <Badge>{p.budget}</Badge>
+                    <label className="persona-selection-control">
+                      <input type="checkbox" checked={selected}
+                        aria-label={`Include ${p.name} (${p.role}) in evaluation`}
+                        aria-describedby="persona-selection-help"
+                        disabled={!selected && selectionFull}
+                        onChange={(event) => {
+                          patch(setPersonaSelected(draft, p, event.target.checked, maxPersonas));
+                          setError("");
+                        }} />
+                      <span>{selected ? "Selected for evaluation" : "Select for evaluation"}</span>
+                    </label>
                   </article>
-                ))}
-                {draft.personas.length < 8 && (
+                ); })}
+                {!selectionFull && (
                   <button
                     className="add-persona"
                     onClick={() =>
@@ -563,21 +503,13 @@ export function Simulation() {
                   </button>
                 )}
               </div>
-              <details className="demo-options">
-                <summary>Demo recovery options</summary>
-                <label className="check-label">
-                  <input
-                    type="checkbox"
-                    checked={draft.failOne}
-                    onChange={(e) => patch({ failOne: e.target.checked })}
-                  />
-                  <span>Interrupt one evaluation to try the retry flow</span>
-                </label>
-              </details>
-              <Notice>
-                These are fictional buyer personas. The frontend demo creates
-                illustrative scores and responses, not AI predictions.
-              </Notice>
+              <Field label="Simulation result">
+                <select value={draft.fresh ? "fresh" : "saved"} onChange={(e) => patch({ fresh: e.target.value === "fresh", runRequestId: undefined, requestSignature: undefined })}>
+                  <option value="saved">Use saved results when the inputs match</option>
+                  <option value="fresh">Run a fresh simulation — call the model again</option>
+                </select>
+              </Field>
+              <SimulationPreview draft={draft} />
             </>
           )}
           {error && (
@@ -605,10 +537,10 @@ export function Simulation() {
               <button
                 className="button primary"
                 onClick={start}
-                disabled={preparing || draft.personas.length < 2 || !product}
+                disabled={preparing || draft.personas.length < 2 || draft.personas.length > maxPersonas || !product}
               >
                 <Icon name="spark" size={16} />
-                {preparing ? "Saving post…" : "Run demo simulation"}
+                {preparing ? "Saving and checking results…" : draft.fresh ? "Run fresh simulation" : "Run simulation"}
               </button>
             )}
           </div>
@@ -652,8 +584,8 @@ export function Simulation() {
             <h3>Your draft stays yours.</h3>
             <p>
               Products and saved post versions are stored in your account.
-              Audience setup and demo reports stay in this browser. Simulation
-              processing is a preview; no post is published.
+              Simulation inputs, personas, and results are saved to your account.
+              You can reopen a report without calling the model again. No post is published.
             </p>
             <Link href="/history" className="text-link">
               Explore saved reports <Icon name="arrow" size={15} />
@@ -666,10 +598,12 @@ export function Simulation() {
           persona={editing}
           onClose={() => setEditing(null)}
           onSave={(p) => {
+            const isNew = !choices.some((profile) => profile.id === p.id);
             patch({
+              availablePersonas: [...choices.filter((profile) => profile.id !== p.id), p],
               personas: draft.personas.some((x) => x.id === p.id)
                 ? draft.personas.map((x) => (x.id === p.id ? p : x))
-                : [...draft.personas, p],
+                : isNew && !selectionFull ? [...draft.personas, p] : draft.personas,
             });
             setEditing(null);
           }}

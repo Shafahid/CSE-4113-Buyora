@@ -2188,6 +2188,37 @@ input[type="file"] {
   border: 1px solid var(--border);
   border-radius: 10px;
 }
+.persona-select-card.is-selected {
+  border-color: var(--accent);
+}
+.persona-selection-help {
+  font-size: calc(10px * var(--text-scale));
+  color: var(--secondary);
+  line-height: 1.6;
+  margin: 0 0 18px;
+}
+.persona-selection-control {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  margin-top: 14px;
+  font-size: calc(10px * var(--text-scale));
+  cursor: pointer;
+}
+.persona-selection-control input[type="checkbox"] {
+  appearance: auto;
+  width: 18px;
+  height: 18px;
+  min-width: 18px;
+  padding: 0;
+  margin: 0;
+  accent-color: var(--accent);
+}
+.persona-selection-control:has(input:disabled) {
+  cursor: default;
+  color: var(--secondary);
+}
 .persona-select-card .avatar {
   width: 42px;
   height: 42px;
@@ -5021,74 +5052,30 @@ input[type="file"] {
   }
 }
 @media print {
-  body {
-    background: #fff;
-    color: #000;
-    font:
-      calc(11px * var(--text-scale)) Arial,
-      sans-serif;
-  }
-  .sidebar,
-  .topbar,
-  .workspace-footer,
-  .skip-link,
-  .toast,
-  .report-page > *:not(.print-report),
-  .storage-warning {
-    display: none !important;
-  }
-  .workspace-main {
-    margin: 0;
-  }
-  .workspace-content {
-    padding: 0;
-    width: 100%;
-  }
-  .print-report {
+  :root { color-scheme: light !important; }
+  html, body { margin: 0; padding: 0; background: #fff !important; color: #1d333e; }
+  .sidebar, .topbar, .workspace-footer, .skip-link, .toast,
+  .report-page > *:not(.print-report), .storage-warning, .modal,
+  nextjs-portal { display: none !important; }
+  .workspace, .workspace-main, .workspace-content, .report-page {
     display: block !important;
+    width: 100%; max-width: none; min-height: 0; height: auto;
+    margin: 0; padding: 0; background: none !important;
+    overflow: visible !important;
   }
-  .print-report h1 {
-    font-size: calc(27px * var(--text-scale));
-    margin: 0 0 20px;
-  }
-  .print-report h2 {
-    font-size: calc(22px * var(--text-scale));
-    margin: 15px 0;
-  }
-  .print-report h3 {
-    font-size: calc(16px * var(--text-scale));
-    margin: 22px 0 10px;
-  }
-  .print-report h4 {
-    font-size: calc(13px * var(--text-scale));
-    margin-top: 15px;
-  }
-  .print-report p {
-    font-size: calc(11px * var(--text-scale));
-    color: #222;
-    margin: 8px 0;
-  }
-  .print-report table {
-    border-collapse: collapse;
-    width: 100%;
-    font-size: calc(8px * var(--text-scale));
-  }
-  .print-report td,
-  .print-report th {
-    border: 1px solid #bbb;
-    padding: 7px;
-    text-align: left;
-  }
-  .print-report tr {
-    break-inside: avoid;
-  }
-  .print-report li {
-    margin-bottom: 9px;
-  }
-  a {
-    color: inherit;
-  }
-  @page {
-    margin: 18mm;
-  }
+  .print-report { display: block !important; }
+}
+
+/* Coverage stays separate from buyer scores so incomplete runs remain clear. */
+.report-coverage { display: flex; justify-content: space-between; align-items: center; gap: 20px; padding: 20px 24px; margin-block: 18px; }
+.report-coverage p { color: var(--secondary); margin: 6px 0 0; font-size: 14px; line-height: 1.5; }
+.report-coverage .button { flex-shrink: 0; }
+.report-main-concern { margin-block: 18px; max-width: 58ch; }
+.report-main-concern strong { font-size: 14px; }
+.report-empty-ranking { padding: 20px 24px; color: var(--secondary); line-height: 1.5; }
+.verdict-panel .report-main-concern p { margin: 6px 0; font-size: 14px; }
+.unavailable-score { color: var(--secondary); font-size: 16px; white-space: nowrap; }
+@media (max-width: 700px) {
+  .report-coverage { align-items: stretch; flex-direction: column; padding: 18px; }
+  .report-coverage .button { white-space: normal; min-height: 44px; }
 }
