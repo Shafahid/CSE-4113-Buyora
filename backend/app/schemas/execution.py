@@ -4,7 +4,11 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-RULES_VERSION = "buyer-perspectives-v1"
+from app.core.persona_diversity import duplicate_perspectives
+
+RULES_VERSION = "buyer-perspectives-v2"
+PROMPT_VERSION = "buyer-evaluator-v2.1"
+PERSONA_VERSION = "contextual-personas-v1"
 Score = Annotated[int, Field(ge=0, le=100, strict=True)]
 
 
@@ -21,6 +25,8 @@ class PersonaProfile(BaseModel):
     budget: str = Field(min_length=1, max_length=100)
     color: str = Field(min_length=1, max_length=20)
     initials: str = Field(min_length=1, max_length=4)
+    context: str = Field(default="", max_length=2000)
+    description_language: Literal["en", "bn"] = "en"
 
 
 class RunCreate(BaseModel):
@@ -44,10 +50,21 @@ class RunCreate(BaseModel):
     def unique_personas(self):
         if len({p.id for p in self.personas}) != len(self.personas):
             raise ValueError("Persona identities must be unique")
+        if duplicate_perspectives([p.model_dump() for p in self.personas]):
+            raise ValueError(
+                "Personas need distinct buying priorities, not just different names"
+            )
         return self
 
 
-class Verdict(BaseModel):
+class ScoreDriver(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    dimension: str = Field(min_length=1, max_length=40)
+    reason: str = Field(min_length=1, max_length=600)
+    evidence: list[str] = Field(default_factory=list, max_length=12)
+
+
+class BuyerVerdict(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
     scores: list[Score] = Field(min_length=7, max_length=7)
     comment: str = Field(min_length=1, max_length=1500)
@@ -55,6 +72,41 @@ class Verdict(BaseModel):
     positive: str = Field(min_length=1, max_length=1500)
     question: str = Field(min_length=1, max_length=1500)
     evidence: list[str] = Field(min_length=1, max_length=12)
+    objections: list[Annotated[str, Field(min_length=1, max_length=1000)]] = Field(
+        default_factory=list, max_length=12
+    )
+    score_drivers: list[ScoreDriver] = Field(default_factory=list, max_length=7)
+
+
+class Verdict(BuyerVerdict):
+    evaluation_source: Literal["ai", "fallback"] = "ai"
+    fallback_reason: str | None = None
+    prompt_version: str | None = None
+    rules_version: str | None = None
+
+
+class PersonaAdaptRequest(RunCreate):
+    mode: Literal["context", "ai"] = "context"
+
+
+class PersonaAdaptResponse(BaseModel):
+    id: str
+    status: str
+    profiles: list[PersonaProfile]
+    source: Literal["context", "ai", "fallback"]
+    cache_hit: bool = False
+    error_code: str | None = None
+    version: str = PERSONA_VERSION
+
+
+class Recommendation(BaseModel):
+    id: str
+    title: str
+    detail: str
+    priority: str
+    addition: str
+    evidence: list[str]
+    persona_ids: list[str]
 
 
 class EvaluationProgress(BaseModel):
@@ -117,7 +169,10 @@ class RetryRequest(BaseModel):
     evaluation_id: int
 
 
-class ReportChanges(BaseModel):
+class RevisionRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    revised: str = Field(max_length=30000)
     applied: list[Annotated[str, Field(max_length=100)]] = Field(max_length=100)
+
+
+class ReportChanges(RevisionRequest):
+    revised: str = Field(max_length=30000)

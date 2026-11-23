@@ -20,8 +20,16 @@ from app.models import (
     SimulationRun,
     User,
 )
-from app.schemas.execution import RULES_VERSION, RunCreate, RunProgress, RunResponse
+from app.schemas.execution import (
+    PROMPT_VERSION,
+    RULES_VERSION,
+    RunCreate,
+    RunProgress,
+    RunResponse,
+)
 from app.services.llm import model_identity
+from app.services.report_insights import objection_groups, recommendations
+from app.services.trust_scoring import trust_signals
 
 TERMINAL = {"completed", "partially_failed", "failed"}
 
@@ -73,8 +81,13 @@ def evaluations(db, run_id):
 
 
 def can_retry(row):
+    if (row.output or {}).get("evaluation_source") == "fallback":
+        return row.attempts < 6 and row.error_code != "configuration_changed"
     return (
-        row.status == "failed"
+        (
+            row.status == "failed"
+            or (row.output or {}).get("evaluation_source") == "fallback"
+        )
         and row.attempts < 6
         and row.error_code
         not in {
@@ -214,6 +227,13 @@ def prepare_inputs(
         "language": data.language,
         "personas": profiles,
         "checks": checks,
+        "rules_version": RULES_VERSION,
+        "prompt_version": PROMPT_VERSION,
+        "execution_policy": {
+            "fallback_enabled": settings.llm_fallback_enabled,
+            "max_model_calls": settings.simulation_max_model_calls,
+            "token_budget": settings.simulation_token_budget,
+        },
         "model_config": {
             "model": model_identity(settings),
             "endpoint": settings.token_bd_api_url,
@@ -264,7 +284,7 @@ def create_run(db: Session, user_id: int, data: RunCreate, settings: Settings):
     if cached and not data.fresh:
         run = db.get(SimulationRun, cached.run_id)
         return response(db, run, True)
-    if not (
+    if not settings.llm_fallback_enabled and not (
         settings.token_bd_api_url
         and settings.token_bd_api_key
         and settings.token_bd_model
@@ -364,6 +384,10 @@ def build_report(run, rows):
                 },
                 "evidence": verdict.get("evidence", []),
                 "errorCode": row.error_code,
+                "evaluationSource": verdict.get("evaluation_source", "ai"),
+                "fallbackReason": verdict.get("fallback_reason"),
+                "objections": verdict.get("objections", []),
+                "scoreDrivers": verdict.get("score_drivers", []),
             }
         )
     return {
@@ -371,6 +395,25 @@ def build_report(run, rows):
         "source": "server",
         "model": run.model,
         "rulesVersion": run.rules_version,
+        "promptVersion": source.get("prompt_version"),
+        "trustSignals": trust_signals(source),
+        "recommendations": recommendations(source, rows),
+        "objectionGroups": objection_groups(rows),
+        "fallbackCount": sum(
+            (row.output or {}).get("evaluation_source") == "fallback" for row in rows
+        ),
+        "usage": {
+            "modelCalls": sum(row.attempts for row in rows),
+            "inputTokens": sum(
+                event.get("input_tokens") or 0 for row in rows for event in row.history
+            ),
+            "outputTokens": sum(
+                event.get("output_tokens") or 0 for row in rows for event in row.history
+            ),
+            "latencyMs": sum(
+                event.get("latency_ms") or 0 for row in rows for event in row.history
+            ),
+        },
         "title": product["name"],
         "createdAt": utc_time(run.created_at).isoformat(),
         "product": {

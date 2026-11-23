@@ -24,6 +24,7 @@ def execution(tmp_path, settings, monkeypatch):
     settings.token_bd_api_key = SecretStr("test-only-never-a-real-key")
     settings.token_bd_model = "test-model"
     settings.simulation_worker_enabled = False
+    settings.llm_fallback_enabled = False
     engine = create_engine(
         f"sqlite:///{tmp_path / 'execution.db'}",
         connect_args={"check_same_thread": False},
@@ -416,6 +417,22 @@ def test_model_adapter_uses_config_and_rejects_unsupported_evidence(
     _, _, settings, _, _ = execution
     captured = []
     output = verdict()
+    from app.services.trust_scoring import DIMENSIONS
+
+    output["score_drivers"] = [
+        {
+            "dimension": dimension,
+            "reason": "সংরক্ষিত পণ্যের বিবরণ যাচাই করুন।",
+            "evidence": ["Canvas bag"],
+        }
+        for dimension in DIMENSIONS
+    ]
+    output.update(
+        comment="দামটি ভালো মনে হচ্ছে",
+        reason="বিস্তারিত তথ্য নিশ্চিত করা দরকার",
+        positive="পণ্যের বিবরণ পরিষ্কার",
+        question="ডেলিভারি চার্জ কত?",
+    )
 
     async def complete(**kwargs):
         import json
@@ -439,7 +456,8 @@ def test_model_adapter_uses_config_and_rejects_unsupported_evidence(
     value, usage = asyncio.run(
         evaluate_persona(settings, inputs, profiles()[0].model_dump())
     )
-    assert value == verdict() and usage["output_tokens"] == 20
+    assert {key: value[key] for key in output} == output
+    assert usage["output_tokens"] == 20 and usage["prompt_version"]
     assert captured[0]["model"] == "openai/test-model"
     assert captured[0]["api_base"] == "https://model.example/v1"
     assert captured[0]["num_retries"] == 0
@@ -472,7 +490,10 @@ def test_truncated_response_reports_token_limit_without_retrying_invalid_json(
     with pytest.raises(ModelFailure, match="output_truncated") as failure:
         asyncio.run(evaluate_persona(settings, inputs, profiles()[0].model_dump()))
     assert not failure.value.retryable
-    assert failure.value.metadata == {
+    assert {
+        key: failure.value.metadata[key]
+        for key in ("input_tokens", "output_tokens", "finish_reason", "output_limit")
+    } == {
         "input_tokens": 100,
         "output_tokens": 4096,
         "finish_reason": "length",

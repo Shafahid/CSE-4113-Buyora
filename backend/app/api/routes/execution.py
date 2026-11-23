@@ -14,9 +14,12 @@ from app.models import (
 )
 from app.schemas.execution import (
     BulkRetryRequest,
+    PersonaAdaptRequest,
+    PersonaAdaptResponse,
     PreviewResponse,
     ReportChanges,
     RetryRequest,
+    RevisionRequest,
     RunCreate,
     RunPreview,
     RunProgress,
@@ -24,6 +27,12 @@ from app.schemas.execution import (
     SimulationOptions,
 )
 from app.services.persona_catalog import profiles
+from app.services.persona_jobs import (
+    adaptation_response,
+    owned_adaptation,
+    start_adaptation,
+)
+from app.services.report_insights import revised_caption
 from app.services.simulation_runs import (
     TERMINAL,
     can_retry,
@@ -37,6 +46,24 @@ from app.services.simulation_runs import (
 )
 
 router = APIRouter(tags=["simulation execution"])
+
+
+@router.post(
+    "/persona-adaptations", response_model=PersonaAdaptResponse, status_code=202
+)
+def adapt_personas(
+    data: PersonaAdaptRequest,
+    request: Request,
+    user: CurrentUser,
+    db: DbSession,
+    _: Csrf,
+):
+    return start_adaptation(db, user.id, data, request.app.state.settings)
+
+
+@router.get("/persona-adaptations/{job_id}", response_model=PersonaAdaptResponse)
+def get_adaptation(job_id: UUID, user: CurrentUser, db: DbSession):
+    return adaptation_response(owned_adaptation(db, str(job_id), user.id))
 
 
 @router.post("/simulation-runs/preview", response_model=PreviewResponse)
@@ -81,7 +108,7 @@ def retry_failed(
         return response(db, run)
     if run.status not in TERMINAL:
         return response(db, run)
-    eligible = [row for row in rows if can_retry(row)]
+    eligible = [row for row in rows if row.status == "failed" and can_retry(row)]
     if not eligible:
         raise HTTPException(
             409, "No perspectives can be retried. Review the report for next steps."
@@ -183,7 +210,10 @@ def retry_persona(
     row = db.get(PersonaEvaluation, data.evaluation_id)
     if not row or row.run_id != run.id:
         raise HTTPException(404, "Evaluation not found")
-    if row.status == "completed":
+    if (
+        row.status == "completed"
+        and (row.output or {}).get("evaluation_source") != "fallback"
+    ):
         return response(db, run)
     if not can_retry(row):
         raise HTTPException(
@@ -206,6 +236,32 @@ def update_report(
     if run.status not in TERMINAL or not run.report:
         raise HTTPException(409, "Wait for the simulation to finish")
     run.report = {**run.report, **data.model_dump()}
+    db.commit()
+    return response(db, run)
+
+
+@router.post("/simulation-runs/{run_id}/revise", response_model=RunResponse)
+def revise_report(
+    run_id: UUID, data: RevisionRequest, user: CurrentUser, db: DbSession, _: Csrf
+):
+    run = owned_run(db, str(run_id), user.id, lock=True)
+    if run.status not in TERMINAL or not run.report:
+        raise HTTPException(409, "Wait for the simulation to finish")
+    from app.services.report_insights import recommendations
+
+    recs = run.report.get("recommendations") or recommendations(
+        run.inputs, evaluations(db, run.id)
+    )
+    try:
+        body = revised_caption(run.inputs, data.applied, recs)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from None
+    run.report = {
+        **run.report,
+        "revised": body,
+        "applied": data.applied,
+        "recommendations": recs,
+    }
     db.commit()
     return response(db, run)
 

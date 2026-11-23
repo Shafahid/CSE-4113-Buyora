@@ -106,6 +106,21 @@ test("frontend client and store integrate with isolated FastAPI: auth, ownership
   selectedDraft = setPersonaSelected(selectedDraft, options.profiles[0], false, options.max_personas);
   selectedDraft = setPersonaSelected(selectedDraft, options.profiles.find((profile) => profile.id === "traditional"), true, options.max_personas);
   const simulationInput = { request_id: crypto.randomUUID(), post_version_id: Number(post.latestVersionId), personas: selectedDraft.personas, audience: { location: "Dhaka" }, language: "en" };
+  const contextual = await store.requestPersonaAdaptation({ ...simulationInput, mode: "context" });
+  assert.equal(contextual.source, "context");
+  assert.ok(contextual.profiles.every((p) => p.context.includes(product.name)));
+  const adaptationInput = { ...simulationInput, request_id: crypto.randomUUID(), mode: "ai" };
+  let adaptation = await store.requestPersonaAdaptation(adaptationInput);
+  const adaptationId = adaptation.id;
+  for (let attempt = 0; attempt < 80 && !["completed", "fallback"].includes(adaptation.status); attempt++) {
+    await delay(100);
+    adaptation = await store.refreshPersonaAdaptation(adaptationId);
+  }
+  assert.equal(adaptation.status, "completed");
+  assert.equal(adaptation.profiles.length, 2);
+  const cachedAdaptation = await store.requestPersonaAdaptation({ ...adaptationInput, request_id: crypto.randomUUID() });
+  assert.equal(cachedAdaptation.id, adaptationId);
+  assert.equal(cachedAdaptation.cache_hit, true);
   let run = await store.startSimulation(simulationInput);
   assert.equal(run.status, "queued");
   for (let attempt = 0; attempt < 80 && !run.report; attempt++) {
@@ -127,11 +142,20 @@ test("frontend client and store integrate with isolated FastAPI: auth, ownership
   assert.equal(savedRun.id, run.id);
   assert.equal(savedRun.cache_hit, true);
   assert.ok(savedRun.evaluations.every((e) => e.attempts === 1));
+  const revised = await store.generateReportRevision(run.id, run.report.recommendations.map((rec) => rec.id));
+  assert.ok(revised.report.revised.startsWith(run.report.post.body));
+  assert.ok(revised.report.revised.includes("[confirm verified details before publishing]"));
+  assert.equal(store.useDemo().reports.find((r) => r.id === run.id).revised, revised.report.revised);
   await store.saveReportChanges(run.id, "Saved caption draft", ["delivery"]);
   await store.loadWorkspace();
   assert.equal(store.useDemo().reports.find((r) => r.id === run.id).revised, "Saved caption draft");
-  const fresh = await store.startSimulation({ ...simulationInput, fresh: true, request_id: crypto.randomUUID() });
+  let fresh = await store.startSimulation({ ...simulationInput, fresh: true, request_id: crypto.randomUUID() });
   assert.notEqual(fresh.id, run.id);
+  for (let attempt = 0; attempt < 80 && !fresh.report; attempt++) {
+    await delay(100);
+    fresh = await store.refreshSimulationProgress(fresh.id);
+  }
+  assert.equal(fresh.status, "completed");
   await auth.logout(); store.clearSession();
   await auth.register("second@example.com", "password123", "Second");
   store.setSession(await auth.login("second@example.com", "password123"));

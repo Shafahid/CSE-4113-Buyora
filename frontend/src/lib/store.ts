@@ -181,6 +181,18 @@ export async function saveReportChanges(id: string, revised: string, applied: st
   const guard = accountGuard();
   const run = await simulationApi.saveReport(id, revised, applied); guard(); catalogRevision++; store.run(run); return run;
 }
+export async function generateReportRevision(id: string, applied: string[]) {
+  const guard = accountGuard();
+  const run = await simulationApi.revise(id, applied); guard(); catalogRevision++; store.run(run); return run;
+}
+export async function requestPersonaAdaptation(data: ApiSchemas["PersonaAdaptRequest"]) {
+  const guard = accountGuard();
+  const result = await simulationApi.adapt(data); guard(); return result;
+}
+export async function refreshPersonaAdaptation(id: string, signal?: AbortSignal) {
+  const guard = accountGuard();
+  const result = await simulationApi.adaptation(id, signal); guard(); return result;
+}
 export async function removeSimulation(id: string) {
   const guard = accountGuard();
   await simulationApi.remove(id); guard(); catalogRevision++; store.removeRun(id);

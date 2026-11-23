@@ -6,6 +6,7 @@ is marked failed for explicit retry: its remote completion cannot be known safel
 
 import asyncio
 import contextlib
+import json
 import logging
 from datetime import timedelta
 from typing import TypedDict
@@ -14,12 +15,31 @@ from uuid import uuid4
 from sqlalchemy import or_, select
 
 from app.models import PersonaEvaluation, Simulation, SimulationRun
-from app.schemas.execution import Verdict
+from app.schemas.execution import RULES_VERSION, Verdict
 from app.services.llm import ModelFailure, evaluate_persona, model_identity
 from app.services.simulation_runs import build_report, evaluations, now
+from app.services.trust_scoring import deterministic_evaluation, evaluation_metadata
 
 logger = logging.getLogger(__name__)
 LEASE_SECONDS = 90
+
+
+def worker_failure_hint(error):
+    """Classify failures without logging driver messages or connection secrets."""
+    original = getattr(error, "orig", error)
+    state = getattr(original, "sqlstate", None)
+    if state in {"42P01", "42703"}:
+        return "Database schema is outdated; run uv run alembic upgrade head"
+    if state in {"28P01", "28000"}:
+        return "Database authentication failed; check DATABASE_URL credentials"
+    if state == "53300":
+        return "Database connection limit reached; check pooler capacity"
+    message = str(original).lower()
+    if any(term in message for term in ("getaddrinfo", "could not translate host")):
+        return "Database hostname could not be resolved; check DNS and DATABASE_URL"
+    if "timeout" in message or "timed out" in message:
+        return "Database connection timed out; check network and pooler availability"
+    return "Check database connectivity and migrations"
 
 
 def claim(factory):
@@ -87,7 +107,7 @@ def heartbeat(factory, run_id, token):
         return True
 
 
-def prepare_attempt(factory, run_id, token, evaluation_id):
+def prepare_attempt(factory, run_id, token, evaluation_id, settings):
     with factory() as db:
         run = leased_run(db, run_id, token)
         if not run:
@@ -95,19 +115,64 @@ def prepare_attempt(factory, run_id, token, evaluation_id):
         row = db.get(PersonaEvaluation, evaluation_id)
         if not row or row.run_id != run_id or row.status in {"completed", "failed"}:
             return None
-        if row.attempts >= 6:
-            row.status = "failed"
-            row.error_code = "retry_limit"
-            row.updated_at = now()
-            db.commit()
-            return None
+        rows = evaluations(db, run_id)
+        policy = run.inputs.get("execution_policy", {})
+        block = "retry_limit" if row.attempts >= 6 else None
+        if sum(item.attempts for item in rows) >= min(
+            policy.get("max_model_calls", 66), settings.simulation_max_model_calls
+        ):
+            block = "model_call_budget"
+        # Reserve a conservative token allowance while holding the run lock, so
+        # parallel dispatches cannot all spend the same remaining budget.
+        spent = 0
+        for item in rows:
+            attempts = {}
+            for event in item.history:
+                attempt = event.get("attempt", 0)
+                amount = max(
+                    event.get("reserved_tokens", 0),
+                    (event.get("input_tokens") or 0)
+                    + (event.get("output_tokens") or 0),
+                )
+                attempts[attempt] = max(attempts.get(attempt, 0), amount)
+            spent += sum(attempts.values())
+        reserve = (
+            len(
+                json.dumps(
+                    {"input": run.inputs, "persona": row.profile}, ensure_ascii=False
+                ).encode()
+            )
+            // 3
+            + settings.llm_max_output_tokens
+            + 512
+        )
+        if spent + reserve > min(
+            policy.get("token_budget", 200000), settings.simulation_token_budget
+        ):
+            block = "token_budget"
+        if block:
+            if not policy.get("fallback_enabled", False):
+                row.status, row.error_code = "failed", block
+                row.updated_at = now()
+                db.commit()
+                return None
+            return run.inputs, row.profile, block
         row.status = "running"
         row.attempts += 1
+        row.history = [
+            *row.history,
+            {
+                "event": "attempt_started",
+                "attempt": row.attempts,
+                "reserved_tokens": reserve,
+                "at": now().isoformat(),
+            },
+        ]
         row.error_code = None
         row.updated_at = now()
         run.updated_at = now()
         db.commit()
-        return run.inputs, row.profile
+        return run.inputs, row.profile, None
 
 
 def save_attempt(factory, run_id, token, evaluation_id, output, metadata, error, retry):
@@ -175,6 +240,8 @@ def finalize(factory, run_id, token):
             "completed": complete,
             "total": len(rows),
             "rules_version": run.rules_version,
+            "fallback_count": run.report["fallbackCount"],
+            "usage": run.report["usage"],
         }
         db.commit()
 
@@ -195,17 +262,21 @@ async def execute_run(factory, settings, run_id, token, evaluator=None):
         evaluation_id = state["evaluation_id"]
         for attempt in range(settings.llm_max_attempts):
             prepared = await asyncio.to_thread(
-                prepare_attempt, factory, run_id, token, evaluation_id
+                prepare_attempt, factory, run_id, token, evaluation_id, settings
             )
             if not prepared:
                 return {}
-            inputs, profile = prepared
+            inputs, profile, blocked = prepared
             output = None
             metadata = {}
             error = None
             retry = False
             try:
                 # Do not run a queued snapshot under a silently changed model.
+                if blocked:
+                    raise ModelFailure(blocked)
+                if inputs.get("rules_version") != RULES_VERSION:
+                    raise ModelFailure("configuration_changed")
                 expected = inputs.get("model_config", {})
                 if expected != {
                     "model": model_identity(settings),
@@ -217,7 +288,10 @@ async def execute_run(factory, settings, run_id, token, evaluator=None):
                     evaluator(settings, inputs, profile),
                     timeout=settings.llm_timeout_seconds + 5,
                 )
-                output = Verdict.model_validate(output).model_dump()
+                output = Verdict.model_validate(
+                    {**output, **evaluation_metadata()}
+                ).model_dump()
+                metadata = {**metadata, **evaluation_metadata()}
             except ModelFailure as exc:
                 output = None
                 error = exc.code
@@ -230,6 +304,14 @@ async def execute_run(factory, settings, run_id, token, evaluator=None):
             except Exception:
                 output = None
                 error = "evaluation_failed"
+            if (
+                error
+                and not retry
+                and error != "configuration_changed"
+                and inputs.get("execution_policy", {}).get("fallback_enabled", False)
+            ):
+                output = deterministic_evaluation(inputs, profile, error)
+                metadata = {**metadata, **evaluation_metadata("fallback")}
             await asyncio.to_thread(
                 save_attempt,
                 factory,
@@ -284,9 +366,18 @@ async def worker_loop(factory, settings):
     warned = False
     while True:
         job = None
+        stage = "persona adaptation queue"
         try:
+            from app.services.persona_jobs import claim_adaptation, execute_adaptation
+
+            adaptation = await asyncio.to_thread(claim_adaptation, factory)
+            if adaptation:
+                stage = "persona adaptation execution"
+                await execute_adaptation(factory, settings, *adaptation)
+            stage = "simulation queue"
             job = await asyncio.to_thread(claim, factory)
             if job:
+                stage = "simulation execution"
                 await execute_run(factory, settings, *job)
             warned = False
         except Exception as error:
@@ -296,8 +387,10 @@ async def worker_loop(factory, settings):
             # No provider exceptions, SQL parameters, inputs or secrets in logs.
             if not warned:
                 logger.warning(
-                    "Simulation worker unavailable (%s); check migrations and DB",
+                    "Simulation worker unavailable (%s) during %s. %s",
                     type(error).__name__,
+                    stage,
+                    worker_failure_hint(error),
                 )
                 warned = True
         await asyncio.sleep(1)

@@ -51,9 +51,12 @@ class Settings(BaseSettings):
     token_bd_model: str | None = None
     llm_provider: str = "openai"
     llm_json_mode: bool = True
-    llm_timeout_seconds: int = Field(default=45, ge=5, le=180)
-    llm_max_output_tokens: int = Field(default=4096, ge=256, le=16384)
+    llm_timeout_seconds: int = Field(default=90, ge=5, le=180)
+    llm_max_output_tokens: int = Field(default=8192, ge=256, le=16384)
     llm_max_attempts: int = Field(default=2, ge=1, le=3)
+    llm_fallback_enabled: bool = True
+    simulation_max_model_calls: int = Field(default=66, ge=1, le=192)
+    simulation_token_budget: int = Field(default=200000, ge=1000, le=2000000)
     simulation_max_personas: int = Field(default=12, ge=2, le=32)
     simulation_concurrency: int = Field(default=3, ge=1, le=8)
     simulation_worker_enabled: bool = True

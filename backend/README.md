@@ -308,7 +308,7 @@ tables or creates them when absent. It does not move existing rows.
 
 ### Saved simulation execution
 
-Migration `0009_simulation_execution` adds durable runs, per-persona evaluations and cache pointers in the `buyora` schema. Configure `TOKEN_BD_API_URL`, `TOKEN_BD_API_KEY`, `TOKEN_BD_MODEL` and optionally `LLM_PROVIDER`. LiteLLM configures the provider; LangGraph dispatches selected profiles with bounded concurrency. `LLM_MAX_OUTPUT_TOKENS` defaults to 4096. Never put these credentials in frontend environment variables.
+Migration `0009_simulation_execution` adds durable runs, per-persona evaluations and cache pointers in the `buyora` schema. Configure `TOKEN_BD_API_URL`, `TOKEN_BD_API_KEY`, `TOKEN_BD_MODEL` and optionally `LLM_PROVIDER`. LiteLLM configures the provider; LangGraph dispatches selected profiles with bounded concurrency. `LLM_MAX_OUTPUT_TOKENS` defaults to 8192 and `LLM_TIMEOUT_SECONDS` to 90 for verdicts with seven score explanations. Never put these credentials in frontend environment variables.
 
 - `GET /simulation-options`: available profiles and selection limits.
 - `POST /simulation-runs`: start or reuse a run. A seller-scoped request UUID is idempotent; `fresh: true` explicitly requests new assessments.
@@ -322,3 +322,34 @@ Migration `0009_simulation_execution` adds durable runs, per-persona evaluations
 Writes require an allowed Origin; every read and write checks seller ownership. Configuration errors and the six-attempt limit block immediate retries. Report coverage is stored with completed results; scores are aggregated only from completed verdicts. Preview and progress do not call the model. A new run or explicitly requested retry can call it.
 
 The worker runs through FastAPI lifespan when `SIMULATION_WORKER_ENABLED` is enabled. Queued inputs and completed outputs survive restarts; uncertain in-flight calls are marked interrupted instead of silently repeated. No migration is required for the preview, compact progress or bulk-retry endpoints beyond revision 0009.
+
+### AI persona engine and recommendations (revision 0010)
+
+The agreed catalog contains **11** buyer perspectives. Selection supports 2 through
+the configured maximum, including custom profiles; the old 30-persona proposal
+is not the acceptance target. See [AI implementation and rubric](docs/ai-simulation.md)
+for the score definitions, fallback formulas, limits, API examples and test commands.
+
+Apply `uv run alembic upgrade head` before starting the updated worker. Revision
+0010 adds only `buyora.persona_adaptations`, its request-uniqueness constraint,
+cache index and ownership foreign keys. It does not rewrite customer records.
+Run `uv run python scripts/verify_ai_migration.py` to inspect the target schema.
+The optional `--apply` mode accepts only a database currently at 0009 or 0010,
+applies 0009 -> 0010 when necessary, and verifies the resulting structure without
+printing connection secrets.
+
+New endpoints use the same session, seller-ownership and Origin protections:
+
+- `POST /persona-adaptations`: adapt/translate templates immediately with
+  `mode: "context"`, or queue a saved variant job with `mode: "ai"`.
+- `GET /persona-adaptations/{id}`: poll a saved AI variant job. Context-only
+  responses are immediate and have no pollable job.
+- `POST /simulation-runs/{id}/revise`: build a saved caption draft from
+  `{ "applied": ["delivery", "payment"] }` and the immutable report snapshot.
+
+Reports now include `evaluationSource`, `fallbackReason`, `scoreDrivers` and
+`objections` per reaction, plus `trustSignals`, `objectionGroups`, `recommendations`,
+`fallbackCount`, `promptVersion` and `usage`. Older reports remain readable.
+The frontend exposes template adaptation and AI variants in the persona step,
+polls saved jobs, and labels fallback assessments on screen and in print.
+Recommendations and revisions for new server reports come from the backend.
