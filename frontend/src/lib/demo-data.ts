@@ -38,6 +38,8 @@ export type Persona = {
   budget: string;
   color: string;
   initials: string;
+  context?: string;
+  description_language?: "en" | "bn";
 };
 export type Audience = {
   location: string;
@@ -60,6 +62,7 @@ export type Draft = {
   runRequestId?: string;
   requestSignature?: string;
   fresh?: boolean;
+  personaAdaptation?: { requestId: string; signature: string; mode: "context" | "ai"; fresh: boolean; jobId?: string };
 };
 export const dimensions = [
   "Interest",
@@ -83,6 +86,10 @@ export type Reaction = {
   evaluationId?: number;
   evidence?: string[];
   errorCode?: string | null;
+  evaluationSource?: "ai" | "fallback";
+  fallbackReason?: string | null;
+  objections?: string[];
+  scoreDrivers?: { dimension: string; reason: string; evidence: string[] }[];
 };
 export type Report = {
   id: string;
@@ -98,6 +105,12 @@ export type Report = {
   source?: "server";
   model?: string;
   rulesVersion?: string;
+  promptVersion?: string;
+  fallbackCount?: number;
+  recommendations?: Recommendation[];
+  objectionGroups?: { topic: string; frequency: number; persona_ids: string[]; questions: string[]; evidence: string[] }[];
+  trustSignals?: Record<string, { supplied: boolean; visible: boolean; negative: boolean; source: "post" | "product" | null; evidence: string[] }>;
+  usage?: { modelCalls: number; inputTokens: number; outputTokens: number; latencyMs: number };
 };
 export type DemoState = {
   version: 1;
@@ -322,10 +335,14 @@ export type Recommendation = {
   detail: string;
   priority: string;
   addition: string;
+  evidence?: string[];
+  persona_ids?: string[];
+  frequency?: number;
 };
 export function recommendations(
-  report: Pick<Report, "post" | "product">,
+  report: Pick<Report, "post" | "product" | "recommendations">,
 ): Recommendation[] {
+  if (report.recommendations !== undefined) return report.recommendations;
   const body = report.post.body.toLowerCase();
   return [
     ...(!/delivery|ডেলিভারি/.test(body)

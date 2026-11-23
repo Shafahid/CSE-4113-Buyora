@@ -4,9 +4,12 @@ import asyncio
 import importlib
 import json
 import os
+import re
+from time import perf_counter
 
 from app.core.config import Settings
-from app.schemas.execution import Verdict
+from app.schemas.execution import PROMPT_VERSION, BuyerVerdict, Verdict
+from app.services.trust_scoring import DIMENSIONS, evaluation_metadata, strings
 
 SYSTEM_PROMPT = """You simulate ONE fictional Bangladeshi buyer reviewing a seller's
 product post. Evaluate independently using the supplied persona's needs and budget.
@@ -24,6 +27,9 @@ from the supplied product/post/persona/audience data (at least one). Never fabri
 quotations. Write comment, reason, positive and question in the requested output
 language (bn means natural Bangla; en means English). The question should identify
 the most useful missing detail or ask for confirmation of a supplied claim.
+Return distinct objections and explain the seven scores in score_drivers, using the
+exact dimension names. Write objections and driver reasons in the requested language.
+Every driver evidence quote must come from the input.
 """
 
 
@@ -43,37 +49,29 @@ def model_identity(settings: Settings) -> str:
     return model if model.startswith(prefix) else prefix + model
 
 
-async def evaluate_persona(settings: Settings, inputs: dict, profile: dict) -> tuple:
-    # Lazy import keeps non-AI endpoints inexpensive and independently testable.
-    # Custom model pricing is not used; don't fetch a remote pricing map at import.
+async def provider_completion(
+    settings, system_prompt, payload, prompt_version=PROMPT_VERSION
+):
+    started = perf_counter()
+    if not (
+        settings.token_bd_api_url
+        and settings.token_bd_api_key
+        and settings.token_bd_model
+    ):
+        raise ModelFailure("provider_configuration")
     os.environ.setdefault("LITELLM_LOCAL_MODEL_COST_MAP", "true")
     litellm = await asyncio.to_thread(importlib.import_module, "litellm")
-
-    payload = {
-        "product": inputs["product"],
-        "post": inputs["post"],
-        "audience": inputs["audience"],
-        "persona": profile,
-        "output_language": inputs["language"],
-        "explicit_information": inputs["checks"],
-    }
-    kwargs = {}
-    if settings.llm_json_mode:
-        kwargs["response_format"] = {"type": "json_object"}
+    kwargs = (
+        {"response_format": {"type": "json_object"}} if settings.llm_json_mode else {}
+    )
     try:
         response = await litellm.acompletion(
             model=model_identity(settings),
             api_base=settings.token_bd_api_url,
             api_key=settings.token_bd_api_key.get_secret_value(),
             messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {
-                    "role": "user",
-                    "content": json.dumps(
-                        {"input": payload, "schema": Verdict.model_json_schema()},
-                        ensure_ascii=False,
-                    ),
-                },
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": json.dumps(payload, ensure_ascii=False)},
             ],
             temperature=0.2,
             max_tokens=settings.llm_max_output_tokens,
@@ -83,52 +81,117 @@ async def evaluate_persona(settings: Settings, inputs: dict, profile: dict) -> t
         )
     except Exception as exc:
         status = getattr(exc, "status_code", None)
-        if status in (401, 403):
-            raise ModelFailure("provider_auth") from None
-        if status == 429:
-            raise ModelFailure("rate_limited", True) from None
-        if status in (400, 404, 422):
-            raise ModelFailure("provider_configuration") from None
-        raise ModelFailure("provider_unavailable", True) from None
+        code = (
+            "provider_auth"
+            if status in (401, 403)
+            else "rate_limited"
+            if status == 429
+            else "provider_configuration"
+            if status in (400, 404, 405, 422)
+            else "provider_unavailable"
+        )
+        raise ModelFailure(
+            code,
+            code in {"rate_limited", "provider_unavailable"},
+            {
+                "latency_ms": round((perf_counter() - started) * 1000),
+                "prompt_version": prompt_version,
+                "http_status": status if isinstance(status, int) else None,
+            },
+        ) from None
     usage = getattr(response, "usage", None)
     metadata = {
         "input_tokens": getattr(usage, "prompt_tokens", None),
         "output_tokens": getattr(usage, "completion_tokens", None),
+        "latency_ms": round((perf_counter() - started) * 1000),
+        "prompt_version": prompt_version,
     }
-    choice = response.choices[0]
+    choices = getattr(response, "choices", [])
+    if not choices:
+        raise ModelFailure("invalid_output", True, metadata)
+    choice = choices[0]
     if getattr(choice, "finish_reason", None) == "length":
-        # Repeating the same exhausted budget can spend tokens without fixing it.
         raise ModelFailure(
             "output_truncated",
-            False,
-            {
+            metadata={
                 **metadata,
                 "finish_reason": "length",
                 "output_limit": settings.llm_max_output_tokens,
             },
         )
+    content = getattr(getattr(choice, "message", None), "content", "") or ""
+    if not isinstance(content, str):
+        raise ModelFailure("invalid_output", True, metadata)
+    if content.strip().startswith("```") and "\n" in content:
+        content = content.strip().split("\n", 1)[1].rsplit("```", 1)[0]
+    return content, metadata
+
+
+async def evaluate_persona(settings, inputs: dict, profile: dict) -> tuple:
+    payload = {
+        "product": inputs["product"],
+        "post": inputs["post"],
+        "audience": inputs["audience"],
+        "persona": profile,
+        "output_language": inputs["language"],
+        "explicit_information": inputs["checks"],
+    }
+    # The stored verdict remains backward compatible, while the provider schema
+    # must describe the explanations that validation actually requires.
+    schema = BuyerVerdict.model_json_schema()
+    schema["properties"]["score_drivers"]["minItems"] = len(DIMENSIONS)
+    schema["properties"]["score_drivers"].pop("default", None)
+    schema["required"].append("score_drivers")
+    schema["$defs"]["ScoreDriver"]["properties"]["dimension"]["enum"] = list(DIMENSIONS)
+    content, metadata = await provider_completion(
+        settings,
+        SYSTEM_PROMPT,
+        {
+            "input": payload,
+            "schema": schema,
+        },
+    )
+    validation_check = "schema"
     try:
-        content = response.choices[0].message.content or ""
-        if content.strip().startswith("```"):
-            content = content.strip().split("\n", 1)[1].rsplit("```", 1)[0]
-        verdict = Verdict.model_validate_json(content)
-
-        # Reject fabricated evidence, without exposing input or model output in logs.
-        def strings(value):
-            if isinstance(value, str):
-                return [value]
-            if isinstance(value, dict):
-                return [text for item in value.values() for text in strings(item)]
-            if isinstance(value, list):
-                return [text for item in value for text in strings(item)]
-            return []
-
+        verdict = BuyerVerdict.model_validate_json(content)
+        validation_check = "evidence"
         sources = strings(payload)
+        quotes = [
+            *verdict.evidence,
+            *(quote for driver in verdict.score_drivers for quote in driver.evidence),
+        ]
         if any(
             not quote.strip() or not any(quote in text for text in sources)
-            for quote in verdict.evidence
+            for quote in quotes
         ):
             raise ValueError("Unsupported evidence")
-        return verdict.model_dump(), metadata
-    except Exception:
-        raise ModelFailure("invalid_output", True, metadata) from None
+        validation_check = "score_drivers"
+        drivers = {driver.dimension: driver for driver in verdict.score_drivers}
+        if len(verdict.score_drivers) != len(DIMENSIONS) or set(drivers) != set(
+            DIMENSIONS
+        ):
+            raise ValueError("Explain all seven dimensions exactly once")
+        verdict.score_drivers = [drivers[dimension] for dimension in DIMENSIONS]
+        validation_check = "output_language"
+        localized = [
+            *(
+                getattr(verdict, key)
+                for key in ("comment", "reason", "positive", "question")
+            ),
+            *verdict.objections,
+            *(driver.reason for driver in verdict.score_drivers),
+        ]
+        if inputs["language"] == "bn" and any(
+            not re.search(r"[\u0980-\u09ff]", text) for text in localized
+        ):
+            raise ValueError("Bangla output was requested")
+        value = verdict.model_dump()
+        value["objections"] = list(dict.fromkeys(value["objections"]))
+        return Verdict(**value, **evaluation_metadata()).model_dump(), {
+            **metadata,
+            **evaluation_metadata(),
+        }
+    except (ValueError, TypeError):
+        raise ModelFailure(
+            "invalid_output", True, {**metadata, "validation_check": validation_check}
+        ) from None

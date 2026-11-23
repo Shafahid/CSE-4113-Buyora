@@ -11,6 +11,9 @@ export function reportFromRun(run: SimulationRun): Report | null {
   return run.report as Report;
 }
 export const simulationApi = {
+  adapt: (data: ApiSchemas["PersonaAdaptRequest"]) => request<ApiSchemas["PersonaAdaptResponse"]>("/persona-adaptations", { method: "POST", ...jsonBody(data) }),
+  adaptation: (id: string, signal?: AbortSignal) => request<ApiSchemas["PersonaAdaptResponse"]>(`/persona-adaptations/${id}`, { signal }),
+  revise: (id: string, applied: string[]) => request<SimulationRun>(`/simulation-runs/${id}/revise`, { method: "POST", ...jsonBody({ applied }) }),
   options: () => request<ApiSchemas["SimulationOptions"]>("/simulation-options"),
   start: (data: ApiSchemas["RunCreate"]) => request<SimulationRun>("/simulation-runs", { method: "POST", ...jsonBody(data) }),
   run: (id: string, signal?: AbortSignal) => request<SimulationRun>(`/simulation-runs/${id}`, { signal }),

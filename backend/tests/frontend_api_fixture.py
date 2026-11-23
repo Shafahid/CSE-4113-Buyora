@@ -18,8 +18,10 @@ import app.main as main_module  # noqa: E402
 from app.api.routes import products  # noqa: E402
 from app.core.config import Settings  # noqa: E402
 from app.models import Base  # noqa: E402
-from app.services import simulation_worker  # noqa: E402
+from app.services import persona_jobs, simulation_worker  # noqa: E402
 from app.services.llm import ModelFailure  # noqa: E402
+from app.services.persona_engine import contextual_profiles  # noqa: E402
+from app.services.trust_scoring import DIMENSIONS  # noqa: E402
 
 
 class MemoryStorage:
@@ -72,23 +74,49 @@ def main():
 
     async def fake_evaluation(_, inputs, profile):
         await asyncio.sleep(6 if "--visual" in sys.argv else 0.05)
+        failure_key = (inputs["product_id"], profile["id"])
         if (
             "--partial" in sys.argv
             and profile["id"] in {"cod", "skeptic"}
-            and profile["id"] not in failed_once
+            and failure_key not in failed_once
         ):
-            failed_once.add(profile["id"])
+            failed_once.add(failure_key)
             raise ModelFailure("invalid_output")
+        bn = inputs["language"] == "bn"
         return {
             "scores": [70, 80, 65, 60, 55, 80, 60],
-            "comment": "What is the total price including delivery?",
-            "reason": "The product is practical; the total delivery cost is unclear.",
-            "positive": "The product description explains its everyday use.",
-            "question": "Can you confirm delivery charges and the return policy?",
+            "comment": "ডেলিভারিসহ মোট দাম কত?"
+            if bn
+            else "What is the total price including delivery?",
+            "reason": "পণ্যটি ব্যবহারিক; মোট ডেলিভারি খরচ পরিষ্কার নয়।"
+            if bn
+            else "The product is practical; the total delivery cost is unclear.",
+            "positive": "পণ্যের বিবরণে দৈনন্দিন ব্যবহার বোঝানো হয়েছে।"
+            if bn
+            else "The product description explains its everyday use.",
+            "question": "ডেলিভারি চার্জ ও রিটার্ন নীতি জানাবেন?"
+            if bn
+            else "Can you confirm delivery charges and the return policy?",
             "evidence": [inputs["product"]["name"]],
+            "score_drivers": [
+                {
+                    "dimension": dimension,
+                    "reason": "সংরক্ষিত পণ্যের তথ্য যাচাই করুন।"
+                    if bn
+                    else "Check the saved product information.",
+                    "evidence": [inputs["product"]["name"]],
+                }
+                for dimension in DIMENSIONS
+            ],
         }, {"input_tokens": 100, "output_tokens": 80}
 
     simulation_worker.evaluate_persona = fake_evaluation
+
+    async def fake_variants(_, inputs):
+        await asyncio.sleep(0.05)
+        return contextual_profiles(inputs), {"input_tokens": 20, "output_tokens": 30}
+
+    persona_jobs.generate_variants = fake_variants
     app = main_module.create_app(settings)
     storage = MemoryStorage()
     app.dependency_overrides[products.get_storage] = lambda: storage

@@ -11,7 +11,7 @@ import {
   Reaction,
   Report,
 } from "@/lib/demo-data";
-import { download, updateDemo, useWorkspace, savePost, retrySimulation, retryFailedSimulation, saveReportChanges } from "@/lib/store";
+import { download, updateDemo, useWorkspace, savePost, retrySimulation, retryFailedSimulation, saveReportChanges, generateReportRevision } from "@/lib/store";
 import { reportInsights } from "@/lib/report-insights";
 import { finishedRun } from "@/lib/simulation-api";
 import { SimulationProgress, evaluationErrors } from "./simulation-progress";
@@ -55,6 +55,8 @@ export function ReportView({
   const [selected, setSelected] = useState<string[] | null>(null);
   const [retrying, setRetrying] = useState("");
   const [saving, setSaving] = useState(false);
+  const [generating, setGenerating] = useState(false);
+  const generatingRef = useRef(false);
   const [saveError, setSaveError] = useState("");
   const retryRequest = useRef<string | null>(null);
   const retryPending = useRef(false);
@@ -81,10 +83,11 @@ export function ReportView({
   const checked =
     selected || (r.applied.length ? r.applied : recs.map((x) => x.id));
   const complete = r.reactions.filter((x) => x.status === "complete");
+  const fallbackCount = complete.filter((x) => x.evaluationSource === "fallback").length;
   const failed = r.reactions.filter((x) => x.status === "failed");
   const ranking = [...complete].sort((a, b) => b.score - a.score);
   const insights = reportInsights(r);
-  const retryable = run?.evaluations.filter((item) => item.can_retry) ?? [];
+  const retryable = run?.evaluations.filter((item) => item.status === "failed" && item.can_retry) ?? [];
   const patch = (values: Partial<Report>) =>
     updateDemo((s) => ({
       ...s,
@@ -152,6 +155,14 @@ export function ReportView({
     finally { setRetrying(""); retryPending.current = false; }
   }
   async function generate() {
+    if (r.source === "server") {
+      if (generatingRef.current) return;
+      generatingRef.current = true; setGenerating(true); setSaveError("");
+      try { await generateReportRevision(r.id, checked); toast("Caption draft created from the saved report facts"); }
+      catch (error) { setSaveError(errorMessage(error)); }
+      finally { generatingRef.current = false; setGenerating(false); }
+      return;
+    }
     const additions = recs
       .filter((x) => checked.includes(x.id))
       .map((x) => x.addition);
@@ -168,10 +179,6 @@ export function ReportView({
       .filter(Boolean)
       .join("\n\n");
     patch({ revised: body, applied: checked });
-    if (r.source === "server") {
-      try { await saveReportChanges(r.id, body, checked); }
-      catch (error) { setSaveError(errorMessage(error)); return; }
-    }
     toast(
       "Revised caption created. Review bracketed details before publishing.",
     );
@@ -230,9 +237,10 @@ export function ReportView({
         {r.language === "bn"
           ? "এটি নমুনা সিমুলেশন। প্রতিক্রিয়া, স্কোর ও পরামর্শ আসল ক্রেতার মতামত বা নিশ্চিত পূর্বাভাস নয়।"
           : r.source === "server"
-            ? "Saved AI-generated perspectives. These are fictional buyer reactions, not actual customer feedback or guaranteed sales predictions."
+            ? "Saved simulated perspectives. These are fictional buyer assessments, not actual customer feedback or guaranteed sales predictions."
             : "A simulated perspective, not a prediction. These are illustrative demo scores and fictional buyer reactions, not actual customer feedback."}
       </Notice>
+      {fallbackCount > 0 && <Notice tone="warning">{fallbackCount} of {complete.length} completed perspectives use a rule-based fallback because AI evaluation was unavailable or a spending limit was reached. Their scores are included in this assessment and marked below.</Notice>}
       <section className="report-coverage panel" aria-label="Assessment coverage">
         <div>
           <strong>{complete.length} of {r.reactions.length} perspectives completed</strong>
@@ -454,6 +462,9 @@ export function ReportView({
                       </Badge>
                     </div>
                     <p className="persona-need">{x.persona.need}</p>
+                    {x.evaluationSource === "fallback" && <Notice tone="warning">Rule-based fallback · {evaluationErrors[x.fallbackReason ?? ""] ?? "AI evaluation was unavailable or limited."}
+                      {run?.evaluations.find((item) => item.id === x.evaluationId)?.can_retry && <div><button className="text-link" disabled={!!retrying} onClick={() => retry(x)}>Retry with AI (uses the model)</button></div>}
+                    </Notice>}
                     {x.status === "complete" ? (
                       <>
                         <div className="score-bars">
@@ -509,7 +520,7 @@ export function ReportView({
             </div>
             <Notice>
               Overall fit is the arithmetic mean of interest, relevance, value,
-              price fit, trust, clarity, and purchase intent. {r.source === "server" ? "Scores come from independent model assessments using the saved input and rubric. Failed evaluations are excluded." : "Placeholder scores are generated from caption completeness and sample persona preferences."}
+              price fit, trust, clarity, and purchase intent. {r.source === "server" ? "Scores use the saved input and versioned rubric. Rule-based fallback assessments are labeled; failed evaluations are excluded." : "Placeholder scores are generated from caption completeness and sample persona preferences."}
             </Notice>
           </>
         )}
@@ -594,6 +605,8 @@ export function ReportView({
                   <p>Choose the suggestions to include in your revision.</p>
                 </div>
               </div>
+              {!!r.objectionGroups?.length && <details className="report-ai-details"><summary>Recurring concerns across completed buyers</summary><ul>{r.objectionGroups.map((group) => <li key={group.topic}><strong>{group.frequency} {group.frequency === 1 ? "perspective" : "perspectives"}</strong>: <span lang={r.language}>{group.questions[0]}</span></li>)}</ul></details>}
+              {r.trustSignals && <details className="report-ai-details"><summary>Information detected in the saved inputs</summary><dl className="details-list">{Object.entries(r.trustSignals).map(([key, signal]) => <div key={key}><dt>{key.replaceAll("_", " ")}</dt><dd>{!signal.supplied ? "Not supplied" : signal.visible ? "Mentioned in the post" : "Product details only"}{signal.negative && " · negative policy stated"}{signal.evidence.length > 0 && <p className="quiet-note">{signal.evidence.join(" · ")}</p>}</dd></div>)}</dl><p className="quiet-note">Detection identifies supplied text; it does not independently verify seller claims.</p></details>}
               {recs.map((rec) => (
                 <label key={rec.id} className="recommendation-check">
                   <input
@@ -615,16 +628,17 @@ export function ReportView({
                     </Badge>
                     <h3>{rec.title}</h3>
                     <p>{rec.detail}</p>
+                    {!!rec.evidence?.length && <p className="quiet-note">Saved evidence: {rec.evidence.map((quote) => `“${quote}”`).join(" · ")}</p>}
                   </div>
                 </label>
               ))}
               <button
                 className="button primary"
                 onClick={generate}
-                disabled={!checked.length}
+                disabled={!checked.length || generating}
               >
                 <Icon name="spark" size={16} />
-                Create revised caption
+                {generating ? "Creating saved caption…" : "Create revised caption"}
               </button>
               <p className="quiet-note">
                 Built from your supplied product details. Review every claim before publishing. Your original post stays unchanged.
@@ -728,6 +742,9 @@ export function ReportView({
           <blockquote className="detail-quote" lang={r.language}>
             “{detail.comment}”
           </blockquote>
+          {detail.evaluationSource === "fallback" && <Notice tone="warning">This is a rule-based fallback assessment, not an AI verdict.</Notice>}
+          {!!detail.scoreDrivers?.length && <div><h4>How the seven scores were assessed</h4><dl className="details-list">{detail.scoreDrivers.map((driver, index) => <div key={driver.dimension}><dt>{driver.dimension} · {detail.scores[index]}/100</dt><dd lang={r.language}>{driver.reason}{driver.evidence.length > 0 && <p className="quiet-note">{driver.evidence.map((quote) => `“${quote}”`).join(" · ")}</p>}</dd></div>)}</dl></div>}
+          {!!detail.objections?.length && <div><h4>Buyer concerns</h4><ul lang={r.language}>{detail.objections.map((text, index) => <li key={index}>{text}</li>)}</ul></div>}
           <dl className="details-list">
             <div>
               <dt>Why this reaction?</dt>

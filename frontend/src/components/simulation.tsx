@@ -32,6 +32,7 @@ import {
 
 import { SimulationProgress } from "./simulation-progress";
 import { SimulationPreview } from "./simulation-preview";
+import { PersonaAdaptation } from "./persona-adaptation";
 
 const steps = ["Product & post", "Your audience", "Buyer personas"];
 export function Simulation({ initialRunId }: { initialRunId?: string }) {
@@ -44,6 +45,7 @@ export function Simulation({ initialRunId }: { initialRunId?: string }) {
   const [error, setError] = useState("");
   const [runId, setRunId] = useState(initialRunId ?? "");
   const [preparing, setPreparing] = useState(false);
+  const [adapting, setAdapting] = useState(false);
   const submitting = useRef(false);
   const [options, setOptions] = useState<{ max_personas: number; profiles: Persona[] } | null>(null);
   const [optionsError, setOptionsError] = useState("");
@@ -426,6 +428,7 @@ export function Simulation({ initialRunId }: { initialRunId?: string }) {
                 {selectionFull && ` You have reached the ${maxPersonas}-persona limit; uncheck one to choose another.`}
                 {draft.personas.length < 2 && " Select at least two personas to continue."}
               </p>
+              <PersonaAdaptation draft={draft} product={product} maxPersonas={maxPersonas} onBusy={setAdapting} />
               <div className="persona-select-grid">
                 {choices.map((p) => {
                   const selected = draft.personas.some((profile) => profile.id === p.id);
@@ -464,6 +467,7 @@ export function Simulation({ initialRunId }: { initialRunId?: string }) {
                     </h3>
                     <span className="persona-role">{p.role}</span>
                     <p>{p.need}</p>
+                    {p.context && <details><summary>Product and audience context</summary><p lang={p.description_language}>{p.context}</p></details>}
                     <Badge>{p.budget}</Badge>
                     <label className="persona-selection-control">
                       <input type="checkbox" checked={selected}
@@ -537,7 +541,7 @@ export function Simulation({ initialRunId }: { initialRunId?: string }) {
               <button
                 className="button primary"
                 onClick={start}
-                disabled={preparing || draft.personas.length < 2 || draft.personas.length > maxPersonas || !product}
+                disabled={preparing || adapting || draft.personas.length < 2 || draft.personas.length > maxPersonas || !product}
               >
                 <Icon name="spark" size={16} />
                 {preparing ? "Saving and checking results…" : draft.fresh ? "Run fresh simulation" : "Run simulation"}

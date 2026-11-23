@@ -6,6 +6,7 @@ export function PrintReport({ report: r }: { report: Report }) {
   const insights = reportInsights(r);
   const recs = recommendations(r);
   const complete = r.reactions.filter((reaction) => reaction.status === "complete");
+  const fallbackCount = complete.filter((reaction) => reaction.evaluationSource === "fallback").length;
   const audience = [
     ["Location", r.audience.location], ["Age range", r.audience.age],
     ["Interests", r.audience.interests], ["Payment preference", r.audience.preferences],
@@ -24,6 +25,7 @@ export function PrintReport({ report: r }: { report: Report }) {
         <p className={styles.subtitle}>{r.post.platform} · {r.product.category} · {r.language === "bn" ? "Bangla" : "English"} assessment{r.post.versionNumber ? ` · Post version ${r.post.versionNumber}` : ""}</p>
       </div>
 
+      {fallbackCount > 0 && <p className={styles.note}>{fallbackCount} of {complete.length} completed perspectives use a rule-based fallback. Their scores are included in the assessment. Each fallback is marked in the buyer perspectives below.</p>}
       <div className={styles.contents} aria-label="Report contents">
         <strong>In this report</strong>
         <p>01 Assessment · 02 Publishing checklist · 03 Persona scorecard<br />04 Buyer perspectives · 05 Saved inputs{r.revised ? " · 06 Revised caption" : ""}</p>
@@ -97,6 +99,7 @@ export function PrintReport({ report: r }: { report: Report }) {
             <div className={styles.personScore}><strong>{reaction.score}<small>/100</small></strong><span>{reaction.sentiment}</span></div>
           </header>
           <p className={styles.buyerNeed}><strong>Looking for</strong> {reaction.persona.need}</p>
+          {reaction.evaluationSource === "fallback" && <p className={styles.note}><strong>Rule-based fallback assessment</strong> · AI evaluation was unavailable or limited.</p>}
           <blockquote lang={r.language}>“{reaction.comment}”</blockquote>
           <dl className={styles.reasoning} lang={r.language}>
             <div><dt>Why this reaction</dt><dd>{reaction.reason}</dd></div>

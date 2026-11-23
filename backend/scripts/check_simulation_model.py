@@ -46,6 +46,9 @@ async def main():
         return 0
     except ModelFailure as error:
         print("Model check failed:", error.code)
+        for key in ("http_status", "validation_check", "finish_reason", "output_limit"):
+            if key in error.metadata:
+                print(f"{key}:", error.metadata[key])
         return 1
     except Exception as error:
         print("Model check failed:", type(error).__name__)

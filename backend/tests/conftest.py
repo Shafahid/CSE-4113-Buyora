@@ -19,6 +19,9 @@ def isolated_environment(monkeypatch: pytest.MonkeyPatch) -> None:
         "LLM_PROVIDER",
         "LLM_JSON_MODE",
         "LLM_MAX_OUTPUT_TOKENS",
+        "LLM_FALLBACK_ENABLED",
+        "SIMULATION_MAX_MODEL_CALLS",
+        "SIMULATION_TOKEN_BUDGET",
         "SIMULATION_WORKER_ENABLED",
     ):
         monkeypatch.delenv(name, raising=False)

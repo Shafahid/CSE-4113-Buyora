@@ -92,7 +92,7 @@ export function SimulationProgress({ id, onBack }: { id: string; onBack?: () => 
             <Avatar persona={item.profile} />
             <div className={styles.identity}>
               <div className={styles.name}><h2>{item.profile.name}</h2><Badge tone={item.status === "completed" ? "green" : item.status === "failed" ? "amber" : "blue"}>
-                {item.status === "running" ? "Evaluating" : item.status === "completed" ? "Completed" : item.status === "failed" ? "Needs retry" : "Queued"}
+                {item.output?.evaluation_source === "fallback" ? "Rule-based fallback" : item.status === "running" ? "Evaluating" : item.status === "completed" ? "Completed" : item.status === "failed" ? "Needs retry" : "Queued"}
               </Badge></div>
               <p>{item.profile.role} · {item.profile.need}</p>
               {item.status === "running" && <p className={styles.activity}><span className={styles.dot} />Reading your post and weighing this buyer’s concerns{item.attempts > 1 ? ` · attempt ${item.attempts}` : ""}…</p>}
