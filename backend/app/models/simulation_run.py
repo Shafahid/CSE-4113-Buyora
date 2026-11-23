@@ -27,6 +27,10 @@ class SimulationRun(Base):
     request_id: Mapped[str] = mapped_column(String(36))
     fingerprint: Mapped[str] = mapped_column(String(64))
     status: Mapped[str] = mapped_column(String(24), default="queued")
+    stage: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="queued", server_default="queued"
+    )
+    expected_personas: Mapped[int] = mapped_column(Integer, nullable=False)
     inputs: Mapped[dict] = mapped_column(JSON_TYPE)
     model: Mapped[str] = mapped_column(String(200))
     rules_version: Mapped[str] = mapped_column(String(50))

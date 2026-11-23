@@ -30,7 +30,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             bind=engine, expire_on_commit=False
         )
         worker = None
-        if settings.simulation_worker_enabled and settings.token_bd_api_key:
+        # The worker also processes deterministic fallback-only runs, so an API
+        # key is not a prerequisite for starting it.
+        if settings.simulation_worker_enabled:
             worker = asyncio.create_task(
                 worker_loop(application.state.session_factory, settings)
             )
