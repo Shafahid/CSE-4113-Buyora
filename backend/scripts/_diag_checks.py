@@ -14,7 +14,6 @@ from app.core.config import Settings  # noqa: E402
 from app.schemas.execution import BuyerVerdict  # noqa: E402
 from app.services.llm import (  # noqa: E402
     SYSTEM_PROMPT,
-    model_identity,
     provider_completion,
 )
 from app.services.persona_catalog import profiles  # noqa: E402

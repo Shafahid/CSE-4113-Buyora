@@ -106,6 +106,10 @@ async def provider_completion(
         "latency_ms": round((perf_counter() - started) * 1000),
         "prompt_version": prompt_version,
     }
+    hidden = getattr(response, "_hidden_params", {}) or {}
+    response_cost = hidden.get("response_cost")
+    if isinstance(response_cost, (int, float)) and response_cost >= 0:
+        metadata["cost_usd"] = response_cost
     choices = getattr(response, "choices", [])
     if not choices:
         raise ModelFailure("invalid_output", True, metadata)

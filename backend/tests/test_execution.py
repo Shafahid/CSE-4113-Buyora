@@ -16,6 +16,28 @@ from app.services.simulation_runs import now
 from app.services.simulation_worker import claim, execute_run
 
 ORIGIN = {"Origin": "http://localhost:3000"}
+MODE_COUNTS = {"quick": 5, "standard": 10, "deep": 20, "extended": 30}
+EXTRA_PRIORITIES = [
+    "price comparison",
+    "premium materials",
+    "verified customer reviews",
+    "product authenticity",
+    "return policy details",
+    "first purchase guidance",
+    "research and specifications",
+    "urgent delivery timing",
+    "gift presentation",
+    "delivery fee transparency",
+    "simple ordering steps",
+    "long term durability",
+    "practical daily use",
+    "feature completeness",
+    "live demonstration",
+    "social proof",
+    "inbox response speed",
+    "video evidence",
+    "comment section feedback",
+]
 
 
 @pytest.fixture
@@ -102,17 +124,44 @@ def process(factory, settings, evaluator=successful_evaluator):
     asyncio.run(execute_run(factory, settings, *job, evaluator=evaluator))
 
 
+def personas_for_count(count):
+    result = [profile.model_dump() for profile in profiles()]
+    for index, priority in enumerate(EXTRA_PRIORITIES, start=len(result)):
+        if len(result) >= count:
+            break
+        result.append(
+            {
+                "id": f"mode-{index}",
+                "name": f"Buyer {index + 1}",
+                "role": priority.title(),
+                "age": "Adult",
+                "location": "Bangladesh",
+                "need": f"Decide specifically from {priority} before ordering",
+                "budget": "Medium",
+                "color": "blue",
+                "initials": f"B{index + 1}",
+                "context": "",
+                "description_language": "en",
+            }
+        )
+    return result[:count]
+
+
 def test_cache_fresh_runs_and_idempotent_request(execution):
     client, factory, settings, payload, _ = execution
     first = start(client, payload)
-    assert first["status"] == "queued" and not first["cache_hit"]
+    assert first["status"] == first["stage"] == "queued" and not first["cache_hit"]
+    assert first["expected_personas"] == first["queued"] == 3
+    assert first["processed"] == first["processing_percent"] == 0
     assert first["updated_at"].endswith("Z")
     assert start(client, payload)["id"] == first["id"]
     repeated = start(client, {**payload, "request_id": str(uuid4())})
     assert repeated["id"] == first["id"] and repeated["cache_hit"]
-    process(factory, settings)
+    process(factory, settings, successful_evaluator)
     report = client.get(f"/simulation-runs/{first['id']}").json()
     assert report["status"] == "completed" and report["completed"] == 3
+    assert report["stage"] == "report_ready"
+    assert report["processed"] == 3 and report["processing_percent"] == 100
     assert report["report"]["source"] == "server"
     assert report["report"]["reactions"][0]["score"] == 67
     assert start(client, {**payload, "request_id": str(uuid4())})["id"] == first["id"]
@@ -141,8 +190,12 @@ def test_input_snapshot_cache_invalidation_and_identity(execution):
 
 def test_dynamic_personas_and_bounded_parallelism(execution):
     client, factory, settings, payload, _ = execution
-    payload["personas"] = [p.model_dump() for p in profiles()]
+    settings.simulation_max_personas = 30
+    payload["personas"] = personas_for_count(30)
+    payload["mode"] = "extended"
     settings.simulation_concurrency = 2
+    settings.simulation_max_model_calls = 192
+    settings.simulation_token_budget = 2_000_000
     run = start(client, payload)
     active = 0
     peak = 0
@@ -159,11 +212,189 @@ def test_dynamic_personas_and_bounded_parallelism(execution):
 
     process(factory, settings, evaluate)
     assert 1 < peak <= 2
-    assert len(seen) == len(set(seen)) == len(profiles())
-    assert set(seen) == {profile.id for profile in profiles()}
-    assert client.get(f"/simulation-runs/{run['id']}").json()["completed"] == len(
-        profiles()
+    assert len(seen) == len(set(seen)) == 30
+    result = client.get(f"/simulation-runs/{run['id']}").json()
+    assert result["completed"] == result["expected_personas"] == 30
+    assert result["stage"] == "report_ready"
+
+
+def test_named_modes_process_5_10_20_and_30_persona_workloads(execution):
+    client, factory, settings, payload, _ = execution
+    settings.simulation_max_personas = 30
+    settings.simulation_max_model_calls = 192
+    settings.simulation_token_budget = 2_000_000
+    options = client.get("/simulation-options").json()
+    assert options["default_mode"] == "standard"
+    assert {item["id"]: item["persona_count"] for item in options["modes"]} == (
+        MODE_COUNTS
     )
+    for mode, count in MODE_COUNTS.items():
+        run = start(
+            client,
+            {
+                **payload,
+                "request_id": str(uuid4()),
+                "mode": mode,
+                "personas": personas_for_count(count),
+            },
+        )
+        assert run["stage"] == "queued"
+        assert run["expected_personas"] == run["total"] == run["queued"] == count
+        process(factory, settings)
+        result = client.get(f"/simulation-runs/{run['id']}").json()
+        assert result["status"] == "completed"
+        assert result["stage"] == "report_ready"
+        assert result["completed"] == result["processed"] == count
+        assert result["processing_percent"] == 100
+        assert result["report"]["mode"] == mode
+        assert client.get(f"/reports/{run['id']}").status_code == 200
+        history = client.get("/reports", params={"mode": mode}).json()
+        assert history["total"] == 1 and history["items"][0]["id"] == run["id"]
+
+
+def test_named_mode_count_mismatch_and_server_limit_are_rejected(execution):
+    client, _, settings, payload, _ = execution
+    mismatch = client.post(
+        "/simulation-runs",
+        headers=ORIGIN,
+        json={**payload, "mode": "quick"},
+    )
+    assert mismatch.status_code == 422
+    assert "requires exactly 5 personas" in mismatch.text
+    settings.simulation_max_personas = 20
+    extended = client.post(
+        "/simulation-runs",
+        headers=ORIGIN,
+        json={
+            **payload,
+            "request_id": str(uuid4()),
+            "mode": "extended",
+            "personas": personas_for_count(30),
+        },
+    )
+    assert extended.status_code == 422
+    assert extended.json()["detail"] == "Too many personas for this simulation"
+
+
+def test_report_records_usage_budgets_and_provider_cost_when_available(execution):
+    client, factory, settings, payload, _ = execution
+    run = start(client, payload)
+
+    async def metered(*args):
+        return verdict(), {
+            "input_tokens": 100,
+            "output_tokens": 80,
+            "latency_ms": 25,
+            "cost_usd": 0.001,
+        }
+
+    process(factory, settings, metered)
+    usage = client.get(f"/simulation-runs/{run['id']}").json()["report"]["usage"]
+    assert usage["modelCalls"] == 3
+    assert usage["inputTokens"] == 300 and usage["outputTokens"] == 240
+    assert usage["latencyMs"] == 75
+    assert usage["costTracked"] and usage["costUsd"] == 0.003
+    assert usage["modelCallLimit"] == settings.simulation_max_model_calls
+    assert usage["tokenBudget"] == settings.simulation_token_budget
+    assert not usage["budgetBlocked"]
+
+
+def test_report_history_snapshot_search_comparison_and_ownership(execution):
+    client, factory, settings, payload, product = execution
+    first = start(client, payload)
+    process(factory, settings)
+
+    assert (
+        client.patch(
+            f"/products/{product['id']}",
+            headers=ORIGIN,
+            json={"name": "Renamed bag", "price": "999.00"},
+        ).status_code
+        == 200
+    )
+    with factory() as db:
+        saved = db.get(SimulationRun, first["id"])
+        post_id = saved.inputs["post_id"]
+    changed_post = {
+        "headline": "A completely different headline",
+        "body": "This later post version must not rewrite an older report.",
+        "platform": "Facebook",
+    }
+    assert (
+        client.post(
+            f"/posts/{post_id}/versions", headers=ORIGIN, json=changed_post
+        ).status_code
+        == 201
+    )
+
+    detail = client.get(f"/reports/{first['id']}").json()
+    assert detail["report"]["product"]["name"] == "Canvas bag"
+    assert detail["report"]["product"]["price"] == 120.0
+    assert detail["report"]["post"]["body"] == (
+        "A reusable canvas bag for your daily commute. Price BDT 120."
+    )
+
+    history = client.get(
+        "/reports",
+        params={"q": "daily commute", "status": "completed", "mode": "custom"},
+    ).json()
+    assert history["total"] == 1
+    assert history["items"][0]["title"] == "Canvas bag"
+    assert history["items"][0]["persona_count"] == 3
+    assert len(history["items"][0]["dimension_scores"]) == 7
+    assert client.get("/reports", params={"q": "Renamed bag"}).json()["total"] == 0
+    invalid_dates = client.get(
+        "/reports",
+        params={
+            "created_from": "2026-11-24T00:00:00Z",
+            "created_to": "2026-11-23T00:00:00Z",
+        },
+    )
+    assert invalid_dates.status_code == 422
+
+    second = start(
+        client,
+        {
+            **payload,
+            "request_id": str(uuid4()),
+            "mode": "quick",
+            "personas": personas_for_count(5),
+        },
+    )
+    process(factory, settings)
+    comparison = client.post(
+        "/reports/compare",
+        json={"report_ids": [first["id"], second["id"]]},
+    )
+    assert comparison.status_code == 200
+    compared = comparison.json()
+    assert [item["persona_count"] for item in compared["reports"]] == [3, 5]
+    assert compared["persona_count_difference"] == 2
+    assert len(compared["dimensions"]) == 7
+    assert all(len(item["values"]) == 2 for item in compared["dimensions"])
+    assert (
+        client.post(
+            "/reports/compare", json={"report_ids": [first["id"], first["id"]]}
+        ).status_code
+        == 422
+    )
+
+    sign_in(client, "report-intruder@example.com")
+    assert client.get("/reports").json()["total"] == 0
+    assert client.get(f"/reports/{first['id']}").status_code == 404
+    assert (
+        client.post(
+            "/reports/compare",
+            json={"report_ids": [first["id"], second["id"]]},
+        ).status_code
+        == 404
+    )
+    assert client.delete(f"/reports/{first['id']}", headers=ORIGIN).status_code == 404
+
+    sign_in(client, "one@example.com")
+    assert client.delete(f"/reports/{second['id']}", headers=ORIGIN).status_code == 204
+    assert client.get(f"/reports/{second['id']}").status_code == 404
+    assert client.get(f"/reports/{first['id']}").status_code == 200
 
 
 def test_partial_failure_retry_preserves_completed_results(execution):
@@ -180,6 +411,7 @@ def test_partial_failure_retry_preserves_completed_results(execution):
     process(factory, settings, evaluate)
     partial = client.get(f"/simulation-runs/{run['id']}").json()
     assert partial["status"] == "partially_failed"
+    assert partial["stage"] == "report_ready_partial"
     assert partial["completed"] == 2 and partial["failed"] == 1
     failed = next(e for e in partial["evaluations"] if e["status"] == "failed")
     retry = {"evaluation_id": failed["id"]}
@@ -189,6 +421,7 @@ def test_partial_failure_retry_preserves_completed_results(execution):
         ).status_code
         == 200
     )
+    assert client.get(f"/simulation-runs/{run['id']}").json()["stage"] == "queued"
     client.post(f"/simulation-runs/{run['id']}/retry", json=retry, headers=ORIGIN)
     retried = []
 
@@ -200,6 +433,7 @@ def test_partial_failure_retry_preserves_completed_results(execution):
     assert retried == ["cod"]
     complete = client.get(f"/simulation-runs/{run['id']}").json()
     assert complete["status"] == "completed"
+    assert complete["stage"] == "report_ready"
     assert len(called) == 3
     assert [e["attempts"] for e in complete["evaluations"]] == [1, 2, 1]
 
@@ -346,7 +580,25 @@ def test_recovery_never_silently_reissues_an_inflight_request(execution):
     assert called == ["cod", "skeptic"] or sorted(called) == ["cod", "skeptic"]
     result = client.get(f"/simulation-runs/{run['id']}").json()
     assert result["status"] == "partially_failed"
+    assert result["stage"] == "report_ready_partial"
+    assert result["processed"] == result["expected_personas"] == 3
     assert result["evaluations"][0]["error_code"] == "interrupted"
+    completed = start(
+        client,
+        {
+            **payload,
+            "request_id": str(uuid4()),
+            "personas": payload["personas"][:2],
+        },
+    )
+    process(factory, settings, successful_evaluator)
+    assert (
+        client.post(
+            "/reports/compare",
+            json={"report_ids": [run["id"], completed["id"]]},
+        ).status_code
+        == 409
+    )
     # A stale worker cannot overwrite a recovered run.
     asyncio.run(execute_run(factory, settings, *old_job, evaluator=evaluate))
     assert len(called) == 2
@@ -443,6 +695,7 @@ def test_model_adapter_uses_config_and_rejects_unsupported_evidence(
                 SimpleNamespace(message=SimpleNamespace(content=json.dumps(output)))
             ],
             usage=SimpleNamespace(prompt_tokens=10, completion_tokens=20),
+            _hidden_params={"response_cost": 0.0123},
         )
 
     monkeypatch.setattr(litellm, "acompletion", complete)
@@ -458,6 +711,7 @@ def test_model_adapter_uses_config_and_rejects_unsupported_evidence(
     )
     assert {key: value[key] for key in output} == output
     assert usage["output_tokens"] == 20 and usage["prompt_version"]
+    assert usage["cost_usd"] == 0.0123
     assert captured[0]["model"] == "openai/test-model"
     assert captured[0]["api_base"] == "https://model.example/v1"
     assert captured[0]["num_retries"] == 0

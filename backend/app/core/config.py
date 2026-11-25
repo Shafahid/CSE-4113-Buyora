@@ -57,7 +57,7 @@ class Settings(BaseSettings):
     llm_fallback_enabled: bool = True
     simulation_max_model_calls: int = Field(default=66, ge=1, le=192)
     simulation_token_budget: int = Field(default=200000, ge=1000, le=2000000)
-    simulation_max_personas: int = Field(default=12, ge=2, le=32)
+    simulation_max_personas: int = Field(default=30, ge=2, le=30)
     simulation_concurrency: int = Field(default=3, ge=1, le=8)
     simulation_worker_enabled: bool = True
 

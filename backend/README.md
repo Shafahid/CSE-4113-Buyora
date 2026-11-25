@@ -4,6 +4,24 @@ FastAPI backend with SQLAlchemy 2, Psycopg 3, and Alembic, managed with uv.
 Supabase provides PostgreSQL hosting; a Supabase Python SDK or API key is not
 needed for this database connection.
 
+## Phase 1 backend overview
+
+The backend owns the complete seller-data and simulation lifecycle:
+
+| Domain | Phase 1 implementation |
+| --- | --- |
+| Security | Argon2 password hashing, server sessions, HttpOnly cookies, trusted-Origin checks and seller ownership |
+| Catalog | Product CRUD/lifecycle, private images, promotional posts and immutable post versions |
+| Simulation setup | Frozen post version, structured audience, language and editable persona persistence |
+| AI services | Persona adaptation, trust signals, seven-score evaluator, evidence validation, fallback and recommendations |
+| Execution | Durable jobs, 5/10/20/30 named modes, custom 2–30 runs, bounded worker, leases, retries and safeguards |
+| Reports | Immutable inputs/reactions, history search/filter, detail, delete, recommendations and comparison |
+| Operations | Alembic revisions 0001–0011, liveness/readiness, standalone worker and actionable recovery logs |
+
+The current built-in persona catalog contains 11 profiles, while the execution
+contract accepts validated custom/edited profiles up to 30. The backend never
+exposes database, Storage or model credentials to the browser.
+
 ## Setup
 
 Requires Python 3.13+ and [uv](https://docs.astral.sh/uv/).
@@ -62,25 +80,32 @@ as a separate deployment step. Starting the API never creates or modifies tables
 
 ```text
 backend/
-  app/
-    main.py             # Application factory, lifespan, middleware, route registration
-    api/
-      router.py         # Versioned API router
-      routes/health.py  # Liveness and database readiness
-    core/config.py      # Validated environment settings
-    db/
-      base.py           # ORM base, private schema, constraint naming
-      session.py        # Engine and request-scoped session dependency
-    models/__init__.py  # ORM model imports for Alembic discovery
-  migrations/
-    env.py              # Shared settings and ORM metadata for Alembic
-    versions/           # Reviewed, version-controlled schema changes
-  tests/                # Configuration, API, transaction, and migration checks
-  main.py               # Uvicorn entry point
-  alembic.ini
-  .env.example
-  pyproject.toml
-  uv.lock
+├── app/
+│   ├── main.py                     # App factory, lifespan, middleware and routers
+│   ├── api/routes/
+│   │   ├── auth.py                 # Registration, login, logout and session lookup
+│   │   ├── products.py             # Products and private image operations
+│   │   ├── posts.py                # Posts and immutable versions
+│   │   ├── simulations.py          # Saved simulation drafts
+│   │   ├── personas.py             # Draft persona CRUD
+│   │   ├── execution.py            # Jobs, retries, reports and comparison
+│   │   └── health.py               # Liveness and readiness
+│   ├── core/                        # Settings, Storage and diversity validation
+│   ├── db/                          # ORM metadata, engine and sessions
+│   ├── models/                      # Auth, catalog and execution persistence
+│   ├── schemas/execution.py         # AI/job/report API contracts
+│   └── services/                    # AI, scoring, worker, reports and recommendations
+├── docs/
+│   ├── ai-simulation.md             # AI contract and scoring rubric
+│   └── simulation-reports.md        # Worker/report operation and recovery
+├── migrations/versions/             # Alembic revisions 0001–0011
+├── scripts/                         # Contract export, migration and diagnostics
+├── tests/                           # Unit, API, lifecycle and migration tests
+├── main.py                          # Uvicorn compatibility entry point
+├── worker.py                        # Standalone simulation worker
+├── alembic.ini
+├── pyproject.toml
+└── uv.lock
 ```
 
 Database operations are synchronous. Declare database-backed route handlers with
@@ -133,6 +158,11 @@ uv run pytest
 uv run ruff check .
 uv run ruff format --check .
 ```
+
+The current Phase 1 suite contains **146 passing backend tests**, including
+authentication, ownership, storage, migrations, AI validation, 5/10/20/30
+workloads, bounded concurrency, retry/restart recovery, immutable report
+integrity, report search/filter/comparison and OpenAPI contracts.
 
 Tests run without Supabase credentials. API/session tests use an isolated SQLite
 database; migrations compile to PostgreSQL SQL offline. To verify a live Supabase
@@ -308,9 +338,25 @@ tables or creates them when absent. It does not move existing rows.
 
 ### Saved simulation execution
 
-Migration `0009_simulation_execution` adds durable runs, per-persona evaluations and cache pointers in the `buyora` schema. Configure `TOKEN_BD_API_URL`, `TOKEN_BD_API_KEY`, `TOKEN_BD_MODEL` and optionally `LLM_PROVIDER`. LiteLLM configures the provider; LangGraph dispatches selected profiles with bounded concurrency. `LLM_MAX_OUTPUT_TOKENS` defaults to 8192 and `LLM_TIMEOUT_SECONDS` to 90 for verdicts with seven score explanations. Never put these credentials in frontend environment variables.
+Migrations `0009_simulation_execution` and `0011_simulation_job_observability`
+add durable runs, per-persona evaluations, cache pointers, persisted job stages and
+expected-persona counts in the `buyora` schema. Configure `TOKEN_BD_API_URL`,
+`TOKEN_BD_API_KEY`, `TOKEN_BD_MODEL` and optionally `LLM_PROVIDER`. LiteLLM
+configures the provider; LangGraph dispatches selected profiles with bounded
+concurrency. `LLM_MAX_OUTPUT_TOKENS` defaults to 8192 and `LLM_TIMEOUT_SECONDS`
+to 90 for verdicts with seven score explanations. Never put these credentials
+in frontend environment variables.
 
-- `GET /simulation-options`: available profiles and selection limits.
+Named run modes are Quick (5), Standard (10), Deep (20) and Extended (30).
+Sending a named `mode` requires exactly its configured number of distinct
+profiles. Omitting `mode`, or sending `custom`, preserves editable custom
+selections from 2 through `SIMULATION_MAX_PERSONAS` (default 30). Standard is
+the advertised default for clients. The current persona catalog and the
+execution limit are separate: clients may submit validated edited/custom
+profiles up to the execution limit.
+
+- `GET /simulation-options`: available profiles, selection limits, named modes
+  and the default mode.
 - `POST /simulation-runs`: start or reuse a run. A seller-scoped request UUID is idempotent; `fresh: true` explicitly requests new assessments.
 - `POST /simulation-runs/preview`: check for matching saved inputs without saving or calling the model. Includes the unsaved `post` editor fields and owned `product_id` alongside run inputs. A changed editor value prevents a match.
 - `GET /simulation-runs` and `GET /simulation-runs/{id}`: owned saved runs and reports.
@@ -319,16 +365,62 @@ Migration `0009_simulation_execution` adds durable runs, per-persona evaluations
 - `POST /simulation-runs/{id}/retry-failed`: retry eligible missing perspectives together using a `request_id` UUID. Completed evaluations are untouched; durable operation history prevents a delayed replay from queuing work again after completion.
 - `PATCH /simulation-runs/{id}/report`: save caption annotations; `DELETE` removes a finished report.
 
-Writes require an allowed Origin; every read and write checks seller ownership. Configuration errors and the six-attempt limit block immediate retries. Report coverage is stored with completed results; scores are aggregated only from completed verdicts. Preview and progress do not call the model. A new run or explicitly requested retry can call it.
+Writes require an allowed Origin; every read and write checks seller ownership.
+Configuration errors and the six-attempt limit block immediate retries. Progress
+responses expose persisted `stage` and `expected_personas` plus queued, running,
+processed, completed and failed counters. Report coverage is stored with
+completed results; scores are aggregated only from completed verdicts. Preview
+and progress do not call the model. A new run or explicitly requested retry can
+call it. Reports record model calls, tokens, latency, configured budgets and
+provider-reported USD cost when the provider supplies it; a missing cost remains
+explicitly untracked rather than estimated.
 
-The worker runs through FastAPI lifespan when `SIMULATION_WORKER_ENABLED` is enabled. Queued inputs and completed outputs survive restarts; uncertain in-flight calls are marked interrupted instead of silently repeated. No migration is required for the preview, compact progress or bulk-retry endpoints beyond revision 0009.
+For the simplest local setup, the worker runs through FastAPI lifespan when
+`SIMULATION_WORKER_ENABLED=true`. It starts even without a provider key so
+fallback-enabled runs cannot remain queued forever. Queued inputs and completed
+outputs survive restarts; uncertain in-flight calls are marked interrupted
+instead of silently repeated.
+
+For a separate worker process, disable the embedded worker in the API process
+and start both commands in different terminals:
+
+```powershell
+# API terminal
+$env:SIMULATION_WORKER_ENABLED = "false"
+uv run uvicorn main:app --reload
+
+# Worker terminal (explicit startup ignores the API embedding switch)
+uv run python worker.py
+```
+
+The database queue uses row locks, leases and heartbeats. Multiple worker
+processes can safely compete for jobs, while each job respects
+`SIMULATION_CONCURRENCY`. Apply migration 0011 before running this version.
+Detailed operations, recovery behavior and report verification are documented
+in [Simulation jobs, reports, and recovery](docs/simulation-reports.md).
+
+### Report history and comparison
+
+Finished seller-owned reports are available through dedicated report APIs in
+addition to the existing simulation-run contract. `GET /reports` supports
+immutable snapshot search, status/mode/date filters, newest/oldest ordering and
+pagination. `GET /reports/{id}` returns the full report, while
+`DELETE /reports/{id}` removes one finished owned report.
+
+`POST /reports/compare` accepts exactly two distinct report UUIDs. Both reports
+must be fully completed and owned by the current seller. It returns report-level
+overall scores and seven dimension averages, and supports reports produced with
+different persona counts. Listing, opening, searching and comparing reports do
+not call the model.
 
 ### AI persona engine and recommendations (revision 0010)
 
-The agreed catalog contains **11** buyer perspectives. Selection supports 2 through
-the configured maximum, including custom profiles; the old 30-persona proposal
-is not the acceptance target. See [AI implementation and rubric](docs/ai-simulation.md)
-for the score definitions, fallback formulas, limits, API examples and test commands.
+The current catalog contains **11** built-in buyer perspectives. Selection
+supports 2 through the configured maximum, including custom profiles, and the
+execution layer validates Quick 5, Standard 10, Deep 20 and Extended 30 modes.
+Expanding the curated built-in catalog to cover the larger modes remains future
+persona-engine work. See [AI implementation and rubric](docs/ai-simulation.md)
+for score definitions, fallback formulas, limits, API examples and test commands.
 
 Apply `uv run alembic upgrade head` before starting the updated worker. Revision
 0010 adds only `buyora.persona_adaptations`, its request-uniqueness constraint,
@@ -353,3 +445,29 @@ Reports now include `evaluationSource`, `fallbackReason`, `scoreDrivers` and
 The frontend exposes template adaptation and AI variants in the persona step,
 polls saved jobs, and labels fallback assessments on screen and in print.
 Recommendations and revisions for new server reports come from the backend.
+
+## Backend ownership and contributors
+
+| Member | GitHub | Backend-related Phase 1 contribution |
+| --- | --- | --- |
+| **Sumaiya Rahman Soma** | [@srs4929](https://github.com/srs4929) | Core database/authentication, ownership, products, images, posts, versions and foundational migrations |
+| **Chowdhury Shafahid Rahman** | [@Shafahid](https://github.com/Shafahid) | Typed frontend integration, API workflow verification and user-facing error/progress handling |
+| **H. M. Mehedi Hasan** | [@Mehedi26696](https://github.com/Mehedi26696) | Persona/AI services, trust scoring, evaluator validation, fallback, recommendations and revision logic |
+| **Abu Bakar** | [@abs-Futy7](https://github.com/abs-Futy7) | Durable simulation/report backend, worker orchestration, retries/recovery, progress, safeguards, report APIs/comparison and B1–B4 integration verification |
+
+## Future backend work
+
+1. Expand realistic, diverse and dynamic personas across behavior, budget, age
+   and preference contexts.
+2. Add advanced analytics, segmentation, trust analysis, purchase-intention
+   analysis and richer historical comparisons.
+3. Add AI product-image quality and promotional-presentation analysis.
+4. Add competitor pricing, promotion and market-trend analysis using properly
+   sourced external data.
+5. Add platform-specific optimization for Facebook, Instagram, TikTok and
+   WhatsApp.
+6. Add Docker, GitHub Actions CI/CD, cloud deployment, monitoring, backups and
+   production cost/security controls.
+
+See the [root Phase 1 README](../README.md) for the complete product overview,
+team responsibilities and roadmap.

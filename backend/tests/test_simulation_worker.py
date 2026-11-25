@@ -34,3 +34,31 @@ def test_worker_logs_actionable_database_failure_without_secrets(
     assert expected in caplog.text
     assert "persona adaptation queue" in caplog.text
     assert "private" not in caplog.text
+
+
+def test_standalone_worker_builds_session_factory_and_disposes_engine(
+    settings, monkeypatch
+):
+    import worker
+
+    seen = []
+
+    class Engine:
+        disposed = False
+
+        def dispose(self):
+            self.disposed = True
+
+    engine = Engine()
+    factory = object()
+
+    async def run(received_factory, received_settings):
+        seen.append((received_factory, received_settings))
+
+    monkeypatch.setattr(worker, "Settings", lambda: settings)
+    monkeypatch.setattr(worker, "create_db_engine", lambda _: engine)
+    monkeypatch.setattr(worker, "sessionmaker", lambda **kwargs: factory)
+    monkeypatch.setattr(worker, "worker_loop", run)
+    asyncio.run(worker.serve())
+    assert seen == [(factory, settings)]
+    assert engine.disposed

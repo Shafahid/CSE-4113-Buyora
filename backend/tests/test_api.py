@@ -1,3 +1,4 @@
+import asyncio
 from pathlib import Path
 from unittest.mock import Mock
 
@@ -28,8 +29,36 @@ def test_welcome_liveness_and_docs_need_no_database_connection(application) -> N
         assert client.get("/").json() == {"message": "Welcome to Buyora API"}
         assert client.get("/api/v1/health/live").json() == {"status": "ok"}
         assert client.get("/docs").status_code == 200
-        assert client.get("/openapi.json").status_code == 200
+        schema = client.get("/openapi.json")
+        assert schema.status_code == 200
+        paths = schema.json()["paths"]
+        assert "/reports" in paths
+        assert "/reports/compare" in paths
+        assert "/reports/{report_id}" in paths
+        report_schemas = schema.json()["components"]["schemas"]
+        assert "ReportListResponse" in report_schemas
+        assert "ReportComparison" in report_schemas
     connected.assert_not_called()
+
+
+def test_embedded_worker_starts_for_fallback_only_configuration(
+    settings, tmp_path, monkeypatch
+):
+    engine = create_engine(f"sqlite:///{tmp_path / 'fallback-worker.db'}")
+    settings.simulation_worker_enabled = True
+    settings.token_bd_api_key = None
+    settings.llm_fallback_enabled = True
+    started = []
+
+    async def fake_worker(factory, received_settings):
+        started.append((factory, received_settings))
+        await asyncio.Event().wait()
+
+    monkeypatch.setattr("app.main.create_db_engine", lambda _: engine)
+    monkeypatch.setattr("app.main.worker_loop", fake_worker)
+    with TestClient(create_app(settings)) as client:
+        assert client.get("/").status_code == 200
+        assert len(started) == 1 and started[0][1] is settings
 
 
 def test_readiness_executes_database_query_and_disposes_engine(application) -> None:
