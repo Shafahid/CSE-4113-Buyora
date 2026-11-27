@@ -49,7 +49,6 @@ def process_image_analysis(
     from sqlalchemy import null, select, update
 
     from app.models.product import Product
-    from app.models.product_image import ProductImage
     from app.models.product_image_analysis import ProductImageAnalysis
 
     now = datetime.now(UTC)
@@ -68,23 +67,23 @@ def process_image_analysis(
     try:
         with session_factory() as db:
             row = db.execute(
-                select(ProductImageAnalysis, Product, ProductImage)
+                select(ProductImageAnalysis, Product)
                 .join(Product, Product.id == ProductImageAnalysis.product_id)
-                .join(ProductImage, ProductImage.id == ProductImageAnalysis.image_id)
                 .where(
                     ProductImageAnalysis.id == analysis_id,
                     Product.seller_id == ProductImageAnalysis.seller_id,
                     Product.deleted_at.is_(None),
-                    ProductImage.product_id == Product.id,
                 )
             ).first()
             if row is None:
                 raise ValueError("Missing product or image")
-            analysis, product, image = row
-            key = image.storage_key
+            analysis, product = row
+            key = analysis.snapshot_storage_key
+            if not key:
+                raise ValueError("Image revision is unavailable")
             data = {
                 "product_id": product.id,
-                "image_id": image.id,
+                "image_id": analysis.original_image_id,
                 "product_details": {
                     "name": product.name,
                     "category": product.category,

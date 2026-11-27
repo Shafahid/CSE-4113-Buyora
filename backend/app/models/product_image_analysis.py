@@ -46,6 +46,7 @@ class ProductImageAnalysis(Base):
         ID, ForeignKey("public.product_images.id", ondelete="SET NULL")
     )
     original_image_id: Mapped[int] = mapped_column(ID, nullable=False)
+    snapshot_storage_key: Mapped[str | None] = mapped_column(Text, index=True)
     language: Mapped[str] = mapped_column(Text, nullable=False, server_default="en")
     status: Mapped[str] = mapped_column(Text, nullable=False, server_default="pending")
     analysis_result: Mapped[dict | None] = mapped_column(JSON_TYPE)

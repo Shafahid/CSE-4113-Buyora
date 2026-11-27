@@ -25,7 +25,12 @@ Csrf = Annotated[None, Depends(check_origin)]
 
 
 class MarketRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(
+        extra="forbid",
+        json_schema_extra={
+            "examples": [{"competitor_evidence_ids": [1, 2], "language": "en"}]
+        },
+    )
     competitor_evidence_ids: list[int] = Field(min_length=1, max_length=20)
     language: Literal["en", "bn"] = "en"
 

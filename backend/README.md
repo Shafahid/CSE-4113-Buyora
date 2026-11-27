@@ -471,3 +471,38 @@ Recommendations and revisions for new server reports come from the backend.
 
 See the [root Phase 1 README](../README.md) for the complete product overview,
 team responsibilities and roadmap.
+
+### Image analysis history and storage cleanup
+
+Image analysis requests retain a private reference to the image object used at
+request time. Product image responses expose an opaque `image_revision`; image
+analysis responses expose the same value and `is_current_image`. A false value
+means the analysis belongs to an earlier or deleted image. A null revision or
+current-image flag identifies a legacy analysis whose exact image cannot be
+established. Legacy analyses without a snapshot fail safely if processed.
+
+Deleting an image prevents new analysis requests, but its existing analyses
+remain available to the owning seller while the product is accessible. Objects
+referenced by analyses remain private and are retained for the history. Image
+replacement schedules old-object cleanup transactionally. A failed cleanup
+remains queued and can be retried by an operator on the intended environment:
+
+```powershell
+uv run python cleanup_storage.py
+```
+
+The command processes up to 100 unreferenced objects per run. It skips objects
+still referenced by an active image or analysis. Review the target environment
+before running it; it deletes eligible objects from that environment's bucket.
+
+## Recovery of previously pending AI requests
+
+Image-analysis and platform-generation requests now return `503` without saving a
+new pending record when durable processing is unavailable. Previously saved
+pending records are not changed automatically and remain available through the
+existing history endpoints. After a worker and its transactional admission
+integration are connected, the team should review those records and explicitly
+requeue eligible work or mark it failed through an approved recovery procedure.
+Do not enable acceptance based only on a provider callable or configuration flag.
+The integration must verify a healthy worker and persist dispatch in the same
+database transaction as the request, with recovery for interrupted work.

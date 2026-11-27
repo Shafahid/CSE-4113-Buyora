@@ -1,3 +1,4 @@
+import hashlib
 import io
 import logging
 import uuid
@@ -22,7 +23,13 @@ from sqlalchemy import select, update
 from app.api.routes.auth import check_origin, get_current_user
 from app.core.storage import StorageClient, StorageError, get_storage
 from app.db.session import DbSession
-from app.models import Product, ProductImage, User
+from app.models import (
+    Product,
+    ProductImage,
+    StorageCleanupTask,
+    User,
+)
+from app.services.storage_cleanup import cleanup_storage_task
 
 router = APIRouter(tags=["products"])
 CurrentUser = Annotated[User, Depends(get_current_user)]
@@ -166,6 +173,7 @@ class ImageResponse(BaseModel):
     id: int
     sort_order: int
     url: str
+    image_revision: str
 
 
 class ProductDetail(ProductResponse):
@@ -234,19 +242,50 @@ def upload_product_image(
             status_code=502, detail="Image storage unavailable"
         ) from None
     image = ProductImage(product_id=product.id, storage_key=key)
+    commit_attempted = False
     try:
         db.add(image)
         db.flush()
         result = ImageCreated(
             id=image.id, product_id=image.product_id, sort_order=image.sort_order
         )
+        commit_attempted = True
         db.commit()
     except Exception:
-        db.rollback()
+        rollback_succeeded = False
         try:
-            storage.remove(key)
+            db.rollback()
+            rollback_succeeded = True
         except Exception:
-            logger.error("Could not remove an orphaned product image")
+            logger.error("Could not roll back image upload transaction")
+        if commit_attempted or not rollback_succeeded:
+            # A failed commit acknowledgement does not prove the row is absent.
+            # Do not queue or remove this object while the outcome is unknown.
+            logger.error(
+                "Image upload outcome uncertain; reconcile product %s revision %s",
+                product_id,
+                image_revision(key),
+            )
+        else:
+            # Commit was never attempted and rollback succeeded. Queue cleanup
+            # separately, then use the shared reference-checked cleanup service.
+            try:
+                task = StorageCleanupTask(storage_key=key)
+                db.add(task)
+                db.flush()
+                task_id = task.id
+                db.commit()
+                cleanup_storage_task(db, task_id, storage)
+            except Exception:
+                try:
+                    db.rollback()
+                except Exception:
+                    logger.error("Could not roll back image cleanup transaction")
+                logger.error(
+                    "Could not run image cleanup for product %s revision %s",
+                    product_id,
+                    image_revision(key),
+                )
         raise
     return result
 
@@ -283,6 +322,7 @@ def replace_product_image(
         raise HTTPException(
             status_code=502, detail="Image storage unavailable"
         ) from None
+    commit_attempted = False
     try:
         # Sign before committing, so a signing error leaves the original active.
         url = storage.signed_url(new_key)
@@ -299,26 +339,47 @@ def replace_product_image(
             raise HTTPException(
                 status_code=409, detail="Image changed; retry replacement"
             )
+        task = StorageCleanupTask(storage_key=old_key)
+        db.add(task)
+        db.flush()
+        task_id = task.id
+        commit_attempted = True
         db.commit()
     except Exception as exc:
-        db.rollback()
         try:
-            storage.remove(new_key)
+            db.rollback()
         except Exception:
-            logger.error("Could not remove an orphaned replacement image")
+            logger.error("Could not roll back replacement transaction")
+        if commit_attempted:
+            # A lost commit acknowledgement leaves the database outcome unknown.
+            # Deleting new_key could delete the image that actually became active.
+            logger.error("Replacement commit outcome unknown; reconcile storage")
+        else:
+            try:
+                storage.remove(new_key)
+            except Exception:
+                logger.error("Could not remove an orphaned replacement image")
         if isinstance(exc, StorageError):
             raise HTTPException(
                 status_code=502, detail="Image storage unavailable"
             ) from None
         raise
     try:
-        storage.remove(old_key)
-    except StorageError:
-        logger.error(
-            "Could not remove old image after replacement for image %s", image_id
-        )
+        cleanup_storage_task(db, task_id, storage)
+    except Exception:
+        db.rollback()
+        logger.error("Storage cleanup task %s could not run", task_id)
     response.headers["Cache-Control"] = "private, no-store"
-    return ImageResponse(id=image_id, sort_order=sort_order, url=url)
+    return ImageResponse(
+        id=image_id,
+        sort_order=sort_order,
+        url=url,
+        image_revision=image_revision(new_key),
+    )
+
+
+def image_revision(key: str) -> str:
+    return hashlib.sha256(key.encode("utf-8")).hexdigest()
 
 
 @router.get("/products/{product_id}", response_model=ProductDetail)
@@ -346,6 +407,7 @@ def get_product(
                     id=image.id,
                     sort_order=image.sort_order,
                     url=storage.signed_url(image.storage_key),
+                    image_revision=image_revision(image.storage_key),
                 )
                 for image in images
             ]
@@ -465,13 +527,24 @@ def delete_product_image(
     )
     if image is None:
         raise HTTPException(status_code=404, detail="Image not found")
-    storage = get_storage(request)
-    try:
-        storage.remove(image.storage_key)
-    except StorageError:
-        raise HTTPException(
-            status_code=502, detail="Image storage unavailable"
-        ) from None
+    # Serialize with replacement and analysis creation using the image row lock.
+    # Record cleanup in the same transaction as the row deletion. No Storage
+    # operation is attempted until the database commit succeeds.
+    task = db.scalar(
+        select(StorageCleanupTask).where(
+            StorageCleanupTask.storage_key == image.storage_key
+        )
+    )
+    if task is None:
+        task = StorageCleanupTask(storage_key=image.storage_key)
+        db.add(task)
+        db.flush()
+    task_id = task.id
     db.delete(image)
     db.commit()
+    try:
+        cleanup_storage_task(db, task_id, get_storage(request))
+    except Exception:
+        db.rollback()
+        logger.error("Storage cleanup task %s could not run", task_id)
     return Response(status_code=204)
