@@ -9,6 +9,7 @@ from sqlalchemy.orm import sessionmaker
 
 from app.api.router import api_router
 from app.api.routes.auth import router as auth_router
+from app.api.routes.competitor_evidence import router as competitor_evidence_router
 from app.api.routes.execution import router as execution_router
 from app.api.routes.personas import router as personas_router
 from app.api.routes.posts import router as posts_router
@@ -48,6 +49,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     application = FastAPI(title="Buyora API", version="0.1.0", lifespan=lifespan)
     application.state.settings = settings
     application.include_router(auth_router)
+    application.include_router(competitor_evidence_router)
     application.include_router(products_router)
     application.include_router(posts_router)
     application.include_router(simulations_router)
