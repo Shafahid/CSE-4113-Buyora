@@ -10,6 +10,8 @@ from app.api.routes.products import owned_product
 from app.db.session import DbSession
 from app.models import (
     PersonaEvaluation,
+    PlatformVariant,
+    PlatformVariantRevision,
     Post,
     PostVersion,
     Product,
@@ -233,6 +235,15 @@ def delete_post(post_id: int, user: CurrentUser, db: DbSession, _: Csrf):
         db.execute(delete(evaluations).where(evaluations.c.persona_id.in_(persona_ids)))
     db.execute(delete(SimulationPersona).where(SimulationPersona.id.in_(persona_ids)))
     db.execute(delete(Simulation).where(Simulation.id.in_(simulation_ids)))
+    variant_ids = select(PlatformVariant.id).where(
+        PlatformVariant.source_version_id.in_(version_ids)
+    )
+    db.execute(
+        delete(PlatformVariantRevision).where(
+            PlatformVariantRevision.variant_id.in_(variant_ids)
+        )
+    )
+    db.execute(delete(PlatformVariant).where(PlatformVariant.id.in_(variant_ids)))
     db.execute(delete(PostVersion).where(PostVersion.post_id == post.id))
     db.delete(post)
     db.commit()

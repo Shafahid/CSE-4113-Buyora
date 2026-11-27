@@ -13,6 +13,7 @@ from app.api.routes.competitor_evidence import router as competitor_evidence_rou
 from app.api.routes.execution import router as execution_router
 from app.api.routes.image_analyses import router as image_analyses_router
 from app.api.routes.personas import router as personas_router
+from app.api.routes.platform_variants import router as platform_variants_router
 from app.api.routes.posts import router as posts_router
 from app.api.routes.products import router as products_router
 from app.api.routes.simulations import router as simulations_router
@@ -54,6 +55,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     application.include_router(products_router)
     application.include_router(image_analyses_router)
     application.include_router(posts_router)
+    application.include_router(platform_variants_router)
     application.include_router(simulations_router)
     application.include_router(personas_router)
     application.include_router(execution_router)
