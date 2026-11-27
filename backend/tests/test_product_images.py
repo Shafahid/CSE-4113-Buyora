@@ -4,6 +4,7 @@ from io import BytesIO
 import pytest
 from fastapi.testclient import TestClient
 from PIL import Image
+from processing_fakes import FakeProcessingAdmission
 from sqlalchemy import create_engine, event, select
 from sqlalchemy.pool import StaticPool
 
@@ -11,6 +12,7 @@ from app.api.routes.products import get_storage
 from app.core.storage import StorageError
 from app.main import create_app
 from app.models import Base, ProductImage
+from app.services.processing_admission import get_processing_admission
 
 ORIGIN = {"Origin": "http://localhost:3000"}
 
@@ -46,6 +48,9 @@ def setup(settings, monkeypatch):
     monkeypatch.setattr("app.main.create_db_engine", lambda _: engine)
     storage = MockStorage()
     app = create_app(settings)
+    app.dependency_overrides[get_processing_admission] = lambda: (
+        FakeProcessingAdmission()
+    )
     app.dependency_overrides[get_storage] = lambda: storage
     monkeypatch.setattr("app.api.routes.products.get_storage", lambda _: storage)
     with TestClient(app) as client:
@@ -268,7 +273,7 @@ def test_remove_image_and_preserve_images_on_soft_delete(setup):
     assert len(storage.objects) == 1
 
 
-def test_remove_failure_keeps_image_row_and_cross_seller_denied(setup, monkeypatch):
+def test_remove_failure_queues_cleanup_and_cross_seller_denied(setup, monkeypatch):
     client, engine, storage = setup
     login(client, "one@example.com")
     product_id = make_product(client)
@@ -289,14 +294,19 @@ def test_remove_failure_keeps_image_row_and_cross_seller_denied(setup, monkeypat
         raise StorageError()
 
     monkeypatch.setattr(storage, "remove", fail)
-    assert client.delete(path, headers=ORIGIN).status_code == 502
+    assert client.delete(path, headers=ORIGIN).status_code == 204
+    from app.models.storage_cleanup import StorageCleanupTask
+
     with engine.connect() as conn:
         assert (
             conn.execute(
                 select(ProductImage).where(ProductImage.id == image["id"])
             ).first()
-            is not None
+            is None
         )
+        task = conn.execute(select(StorageCleanupTask)).first()
+        assert task is not None and task.attempts == 1
+    assert len(storage.objects) == 1
 
 
 def test_duplicate_copies_details_without_copying_images(setup):
@@ -525,3 +535,388 @@ def test_replace_conflict_does_not_delete_newer_image(setup, monkeypatch):
         )
     assert competing_key in storage.objects and original_key in storage.objects
     assert len(storage.objects) == 2
+
+
+def test_failed_cleanup_is_retryable(setup, monkeypatch):
+    from sqlalchemy.orm import Session
+
+    from app.models.storage_cleanup import StorageCleanupTask
+    from app.services.storage_cleanup import cleanup_storage_task
+
+    client, engine, storage = setup
+    login(client, "seller@example.com")
+    product_id = make_product(client)
+    image_id = make_image(client, product_id)
+    old_key = next(iter(storage.objects))
+    original_remove = storage.remove
+
+    def fail_remove(key):
+        raise StorageError()
+
+    monkeypatch.setattr(storage, "remove", fail_remove)
+    response = client.put(
+        f"/products/{product_id}/images/{image_id}",
+        files=replacement_file(),
+        headers=ORIGIN,
+    )
+    assert response.status_code == 200 and old_key in storage.objects
+    with Session(engine) as db:
+        task = db.scalar(
+            select(StorageCleanupTask).where(StorageCleanupTask.storage_key == old_key)
+        )
+        assert task is not None and task.attempts == 1
+        task_id = task.id
+        monkeypatch.setattr(storage, "remove", original_remove)
+        assert cleanup_storage_task(db, task_id, storage)
+        assert db.get(StorageCleanupTask, task_id) is None
+    assert old_key not in storage.objects
+
+
+def test_cleanup_does_not_remove_referenced_image(setup):
+    from sqlalchemy.orm import Session
+
+    from app.models.storage_cleanup import StorageCleanupTask
+    from app.services.storage_cleanup import cleanup_storage_task
+
+    client, engine, storage = setup
+    login(client, "seller@example.com")
+    product_id = make_product(client)
+    image_id = make_image(client, product_id)
+    old_key = next(iter(storage.objects))
+    client.post(
+        f"/products/{product_id}/images/{image_id}/analyses", json={}, headers=ORIGIN
+    )
+    assert (
+        client.put(
+            f"/products/{product_id}/images/{image_id}",
+            files=replacement_file(),
+            headers=ORIGIN,
+        ).status_code
+        == 200
+    )
+    with Session(engine) as db:
+        task = db.scalar(
+            select(StorageCleanupTask).where(StorageCleanupTask.storage_key == old_key)
+        )
+        assert task is not None
+        assert not cleanup_storage_task(db, task.id, storage)
+    assert old_key in storage.objects
+
+
+def test_delete_commit_failure_never_removes_storage(setup):
+    from sqlalchemy.orm import Session
+
+    from app.models.storage_cleanup import StorageCleanupTask
+
+    client, engine, storage = setup
+    login(client, "seller@example.com")
+    product_id = make_product(client)
+    image_id = make_image(client, product_id)
+    old_key = next(iter(storage.objects))
+
+    def fail_commit(session):
+        raise RuntimeError("simulated commit failure")
+
+    event.listen(Session, "before_commit", fail_commit)
+    try:
+        with pytest.raises(RuntimeError, match="simulated commit failure"):
+            client.delete(f"/products/{product_id}/images/{image_id}", headers=ORIGIN)
+    finally:
+        event.remove(Session, "before_commit", fail_commit)
+    with engine.connect() as conn:
+        assert (
+            conn.execute(
+                select(ProductImage.storage_key).where(ProductImage.id == image_id)
+            ).scalar_one()
+            == old_key
+        )
+        assert conn.execute(select(StorageCleanupTask.id)).first() is None
+    assert old_key in storage.objects and old_key not in storage.removed
+
+
+def test_delete_storage_failure_can_be_retried(setup, monkeypatch):
+    from sqlalchemy.orm import Session
+
+    from app.models.storage_cleanup import StorageCleanupTask
+    from app.services.storage_cleanup import cleanup_storage_task
+
+    client, engine, storage = setup
+    login(client, "seller@example.com")
+    product_id = make_product(client)
+    image_id = make_image(client, product_id)
+    old_key = next(iter(storage.objects))
+    remove = storage.remove
+
+    def fail(key):
+        raise StorageError()
+
+    monkeypatch.setattr(storage, "remove", fail)
+    assert (
+        client.delete(
+            f"/products/{product_id}/images/{image_id}", headers=ORIGIN
+        ).status_code
+        == 204
+    )
+    assert old_key in storage.objects
+    with Session(engine) as db:
+        task = db.scalar(
+            select(StorageCleanupTask).where(StorageCleanupTask.storage_key == old_key)
+        )
+        assert task is not None and task.attempts == 1
+        task_id = task.id
+        monkeypatch.setattr(storage, "remove", remove)
+        assert cleanup_storage_task(db, task_id, storage)
+        assert db.get(StorageCleanupTask, task_id) is None
+    assert old_key not in storage.objects
+
+
+def test_cleanup_preserves_active_image(setup):
+    from sqlalchemy.orm import Session
+
+    from app.models.storage_cleanup import StorageCleanupTask
+    from app.services.storage_cleanup import cleanup_storage_task
+
+    client, engine, storage = setup
+    login(client, "seller@example.com")
+    product_id = make_product(client)
+    make_image(client, product_id)
+    key = next(iter(storage.objects))
+    with Session(engine) as db:
+        task = StorageCleanupTask(storage_key=key)
+        db.add(task)
+        db.commit()
+        assert not cleanup_storage_task(db, task.id, storage)
+    assert key in storage.objects and key not in storage.removed
+
+
+def test_replacement_loses_race_with_deletion(setup, monkeypatch):
+    from sqlalchemy import delete
+    from sqlalchemy.orm import Session
+
+    from app.models.storage_cleanup import StorageCleanupTask
+    from app.services.storage_cleanup import cleanup_storage_task
+
+    client, engine, storage = setup
+    login(client, "seller@example.com")
+    product_id = make_product(client)
+    image_id = make_image(client, product_id)
+    old_key = next(iter(storage.objects))
+    upload = storage.upload
+
+    def upload_then_delete(key, data, content_type):
+        upload(key, data, content_type)
+        with Session(engine) as db:
+            db.add(StorageCleanupTask(storage_key=old_key))
+            db.execute(delete(ProductImage).where(ProductImage.id == image_id))
+            db.commit()
+            task = db.scalar(
+                select(StorageCleanupTask).where(
+                    StorageCleanupTask.storage_key == old_key
+                )
+            )
+            cleanup_storage_task(db, task.id, storage)
+
+    monkeypatch.setattr(storage, "upload", upload_then_delete)
+    response = client.put(
+        f"/products/{product_id}/images/{image_id}",
+        files=replacement_file(),
+        headers=ORIGIN,
+    )
+    assert response.status_code == 409
+    with engine.connect() as conn:
+        assert (
+            conn.execute(
+                select(ProductImage.id).where(ProductImage.id == image_id)
+            ).first()
+            is None
+        )
+    assert not storage.objects
+
+
+def test_replacement_uncertain_commit_does_not_delete_active_object(setup):
+    from sqlalchemy.exc import InvalidRequestError
+    from sqlalchemy.orm import Session
+
+    client, engine, storage = setup
+    login(client, "seller@example.com")
+    product_id = make_product(client)
+    image_id = make_image(client, product_id)
+    old_key = next(iter(storage.objects))
+
+    def fail_after_commit(session):
+        raise RuntimeError("commit acknowledgement lost")
+
+    event.listen(Session, "after_commit", fail_after_commit)
+    try:
+        with pytest.raises((RuntimeError, InvalidRequestError)):
+            client.put(
+                f"/products/{product_id}/images/{image_id}",
+                files=replacement_file(),
+                headers=ORIGIN,
+            )
+    finally:
+        event.remove(Session, "after_commit", fail_after_commit)
+    with engine.connect() as conn:
+        active_key = conn.execute(
+            select(ProductImage.storage_key).where(ProductImage.id == image_id)
+        ).scalar_one()
+    assert active_key != old_key and active_key in storage.objects
+
+
+def test_delete_preserves_pending_analysis_and_cleanup_task(setup):
+    from sqlalchemy.orm import Session
+
+    from app.models.storage_cleanup import StorageCleanupTask
+    from app.services.storage_cleanup import cleanup_storage_task
+
+    client, engine, storage = setup
+    login(client, "seller@example.com")
+    product_id = make_product(client)
+    image_id = make_image(client, product_id)
+    key = next(iter(storage.objects))
+    path = f"/products/{product_id}/images/{image_id}/analyses"
+    analysis = client.post(path, json={}, headers=ORIGIN).json()
+    assert (
+        client.delete(
+            f"/products/{product_id}/images/{image_id}", headers=ORIGIN
+        ).status_code
+        == 204
+    )
+    assert client.get(f"{path}/{analysis['id']}").json()["is_current_image"] is False
+    with Session(engine) as db:
+        task = db.scalar(
+            select(StorageCleanupTask).where(StorageCleanupTask.storage_key == key)
+        )
+        assert task is not None
+        assert not cleanup_storage_task(db, task.id, storage)
+    assert key in storage.objects and key not in storage.removed
+
+
+def test_cleanup_retains_objects_when_legacy_analysis_is_unknown(setup):
+    from sqlalchemy import update
+    from sqlalchemy.orm import Session
+
+    from app.models.product_image_analysis import ProductImageAnalysis
+    from app.models.storage_cleanup import StorageCleanupTask
+    from app.services.storage_cleanup import cleanup_storage_task
+
+    client, engine, storage = setup
+    login(client, "seller@example.com")
+    product_id = make_product(client)
+    image_id = make_image(client, product_id)
+    key = next(iter(storage.objects))
+    path = f"/products/{product_id}/images/{image_id}/analyses"
+    analysis_id = client.post(path, json={}, headers=ORIGIN).json()["id"]
+    with engine.begin() as conn:
+        conn.execute(
+            update(ProductImageAnalysis)
+            .where(ProductImageAnalysis.id == analysis_id)
+            .values(snapshot_storage_key=None)
+        )
+    assert (
+        client.delete(
+            f"/products/{product_id}/images/{image_id}", headers=ORIGIN
+        ).status_code
+        == 204
+    )
+    with Session(engine) as db:
+        task = db.scalar(
+            select(StorageCleanupTask).where(StorageCleanupTask.storage_key == key)
+        )
+        assert task is not None
+        assert not cleanup_storage_task(db, task.id, storage)
+    assert key in storage.objects and key not in storage.removed
+
+
+def test_upload_precommit_failure_queues_cleanup_when_storage_unavailable(
+    setup, monkeypatch
+):
+    from sqlalchemy.orm import Session
+
+    from app.models.storage_cleanup import StorageCleanupTask
+    from app.services.storage_cleanup import cleanup_storage_task
+
+    client, engine, storage = setup
+    login(client, "seller@example.com")
+    product_id = make_product(client)
+    remove = storage.remove
+
+    def fail_insert(*args):
+        raise RuntimeError("insert rejected")
+
+    def fail_remove(key):
+        raise StorageError()
+
+    event.listen(ProductImage, "before_insert", fail_insert)
+    monkeypatch.setattr(storage, "remove", fail_remove)
+    try:
+        with pytest.raises(RuntimeError, match="insert rejected"):
+            client.post(
+                f"/products/{product_id}/images",
+                files={"file": ("a.png", image_bytes(), "image/png")},
+                headers=ORIGIN,
+            )
+    finally:
+        event.remove(ProductImage, "before_insert", fail_insert)
+    assert len(storage.objects) == 1
+    with Session(engine) as db:
+        assert db.scalar(select(ProductImage.id)) is None
+        task = db.scalar(select(StorageCleanupTask))
+        assert task is not None and task.attempts == 1
+        task_id = task.id
+        monkeypatch.setattr(storage, "remove", remove)
+        assert cleanup_storage_task(db, task_id, storage)
+        assert db.get(StorageCleanupTask, task_id) is None
+    assert storage.objects == {}
+
+
+def test_upload_commit_failure_keeps_object_when_outcome_uncertain(setup):
+    from sqlalchemy.orm import Session
+
+    client, engine, storage = setup
+    login(client, "seller@example.com")
+    product_id = make_product(client)
+
+    def fail_commit(session):
+        raise RuntimeError("commit failure")
+
+    event.listen(Session, "before_commit", fail_commit)
+    try:
+        with pytest.raises(RuntimeError, match="commit failure"):
+            client.post(
+                f"/products/{product_id}/images",
+                files={"file": ("a.png", image_bytes(), "image/png")},
+                headers=ORIGIN,
+            )
+    finally:
+        event.remove(Session, "before_commit", fail_commit)
+    with engine.connect() as conn:
+        assert conn.execute(select(ProductImage.id)).first() is None
+    assert len(storage.objects) == 1
+    assert storage.removed == []
+
+
+def test_upload_lost_commit_ack_keeps_active_image(setup):
+    from sqlalchemy.orm import Session
+
+    client, engine, storage = setup
+    login(client, "seller@example.com")
+    product_id = make_product(client)
+
+    def fail_after_commit(session):
+        raise RuntimeError("commit acknowledgement lost")
+
+    event.listen(Session, "after_commit", fail_after_commit)
+    try:
+        with pytest.raises(RuntimeError, match="commit acknowledgement lost"):
+            client.post(
+                f"/products/{product_id}/images",
+                files={"file": ("a.png", image_bytes(), "image/png")},
+                headers=ORIGIN,
+            )
+    finally:
+        event.remove(Session, "after_commit", fail_after_commit)
+    with engine.connect() as conn:
+        active_key = conn.execute(select(ProductImage.storage_key)).scalar_one()
+    assert active_key in storage.objects
+    assert active_key not in storage.removed

@@ -1,6 +1,7 @@
 from datetime import UTC, datetime
 
 import pytest
+from processing_fakes import FakeProcessingAdmission
 from pydantic import ValidationError
 from sqlalchemy import select
 from test_posts import ORIGIN, VERSION, login, product
@@ -9,6 +10,7 @@ from test_posts import client as post_client
 from app.models.platform_variant import PlatformVariant, PlatformVariantRevision
 from app.models.product import Product
 from app.services.platform_content import PlatformGenerationResult
+from app.services.processing_admission import get_processing_admission
 
 client = post_client
 CONTENT = {"headline": "New headline", "body": "New caption", "hashtags": ["buyora"]}
@@ -32,13 +34,18 @@ def test_request_manual_variant_and_revisions(client):
         "platform": "instagram",
         "preferences": "short",
     }
+    admission = FakeProcessingAdmission()
+    client.app.dependency_overrides[get_processing_admission] = lambda: admission  # noqa: B023
     pending = client.post(path, json=request, headers=ORIGIN)
     assert pending.status_code == 201
     assert (
         pending.json()["status"] == "pending"
-        and pending.json()["processing_available"] is False
+        and pending.json()["processing_available"] is True
     )
     assert pending.json()["latest_revision"] is None
+    assert admission.accepted == [("platform_generation", pending.json()["id"])]
+    client.app.dependency_overrides.pop(get_processing_admission)
+    assert client.get(f"{path}/{pending.json()['id']}").json()["status"] == "pending"
     created = client.post(path, json=request | {"content": CONTENT}, headers=ORIGIN)
     assert created.status_code == 201 and created.json()["status"] == "ready"
     item = created.json()
@@ -165,3 +172,88 @@ def test_platform_migration_offline_sql_and_downgrade(monkeypatch):
     )
     with pytest.raises(RuntimeError, match="manual review"):
         migration["downgrade"]()
+
+
+def test_unavailable_generation_leaves_no_variant_manual_still_works(client):
+    from sqlalchemy import func
+
+    client, engine = client
+    login(client, "seller@example.com")
+    _, post = new_post(client)
+    path = f"/posts/{post['id']}/variants"
+    data = {"source_version_id": post["latest_version"]["id"], "platform": "facebook"}
+    client.app.state.platform_processing_available = True
+    rejected = client.post(path, json=data, headers=ORIGIN)
+    assert rejected.status_code == 503
+    assert rejected.json()["detail"] == "Platform generation service is not configured"
+    with engine.connect() as conn:
+        assert (
+            conn.execute(select(func.count()).select_from(PlatformVariant)).scalar_one()
+            == 0
+        )
+    manual = client.post(path, json=data | {"content": CONTENT}, headers=ORIGIN)
+    assert manual.status_code == 201 and manual.json()["status"] == "ready"
+    item = f"{path}/{manual.json()['id']}"
+    assert (
+        client.post(item + "/revisions", json=CONTENT, headers=ORIGIN).status_code
+        == 201
+    )
+    assert len(client.get(item + "/revisions").json()) == 2
+    assert client.get(item).status_code == 200
+
+
+def test_platform_dispatch_failure_rolls_back(client):
+    from sqlalchemy import func
+
+    client, engine = client
+    login(client, "seller@example.com")
+    _, post = new_post(client)
+    path = f"/posts/{post['id']}/variants"
+    data = {"source_version_id": post["latest_version"]["id"], "platform": "tiktok"}
+    for admission in (
+        FakeProcessingAdmission(ready=False),
+        FakeProcessingAdmission(fail_enqueue=True),
+    ):
+        client.app.dependency_overrides[get_processing_admission] = lambda: admission  # noqa: B023
+        assert client.post(path, json=data, headers=ORIGIN).status_code == 503
+    with engine.connect() as conn:
+        assert (
+            conn.execute(select(func.count()).select_from(PlatformVariant)).scalar_one()
+            == 0
+        )
+
+
+def test_configured_mock_generation_can_complete(client):
+    from sqlalchemy.orm import Session
+
+    client, engine = client
+    login(client, "seller@example.com")
+    _, post = new_post(client)
+    admission = FakeProcessingAdmission()
+    client.app.dependency_overrides[get_processing_admission] = lambda: admission
+    path = f"/posts/{post['id']}/variants"
+    result = client.post(
+        path,
+        json={
+            "source_version_id": post["latest_version"]["id"],
+            "platform": "whatsapp",
+        },
+        headers=ORIGIN,
+    )
+    assert result.status_code == 201
+    variant_id = result.json()["id"]
+    assert admission.accepted == [("platform_generation", variant_id)]
+    # Simulate a worker using test-only content; no production provider is wired.
+    with Session(engine) as db:
+        variant = db.get(PlatformVariant, variant_id)
+        variant.status = "ready"
+        db.add(
+            PlatformVariantRevision(
+                variant_id=variant_id, revision_number=1, origin="ai", **CONTENT
+            )
+        )
+        db.commit()
+    saved = client.get(f"{path}/{variant_id}").json()
+    assert saved["status"] == "ready"
+    assert saved["processing_available"] is True
+    assert saved["latest_revision"]["body"] == CONTENT["body"]

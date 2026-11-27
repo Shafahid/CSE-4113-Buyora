@@ -64,7 +64,7 @@ def price_observations(data: MarketInput):
     return [
         {
             "evidence_id": c.id,
-            "price": str(c.price),
+            "price": str(c.price) if c.price is not None else None,
             "currency": c.currency,
             "observed_at": c.observed_at.isoformat(),
             "comparison": (

@@ -11,6 +11,7 @@ from app.models.product_image_analysis import ProductImageAnalysis
 from app.models.simulation import Simulation
 from app.models.simulation_persona import SimulationPersona
 from app.models.simulation_run import PersonaEvaluation, SimulationCache, SimulationRun
+from app.models.storage_cleanup import StorageCleanupTask
 
 __all__ = [
     "AuthSession",
@@ -22,6 +23,7 @@ __all__ = [
     "Product",
     "ProductImage",
     "ProductImageAnalysis",
+    "StorageCleanupTask",
     "Post",
     "PostVersion",
     "Simulation",

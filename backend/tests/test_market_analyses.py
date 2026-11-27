@@ -189,3 +189,34 @@ def test_market_migration_offline(monkeypatch):
     )
     with pytest.raises(RuntimeError, match="manual review"):
         migration["downgrade"]()
+
+
+def test_missing_price_is_json_null(client):
+    client, _ = client
+    login_as(client, "seller@example.com")
+    product = create_product(client)
+    competitor = evidence(client, price=None, currency=None)
+    client.app.state.market_analysis_processing_available = True
+    response = client.post(
+        f"/products/{product}/market-analyses",
+        json={"competitor_evidence_ids": [competitor]},
+        headers=ORIGIN,
+    )
+    assert response.status_code == 202
+    observation = response.json()["price_observations"][0]
+    assert (
+        observation["price"] is None and observation["comparison"] == "not_comparable"
+    )
+
+
+def test_phase_two_openapi_documents_session_and_errors(client):
+    client, _ = client
+    schema = client.get("/openapi.json").json()
+    assert schema["components"]["securitySchemes"]["SellerSession"]["in"] == "cookie"
+    path = schema["paths"]["/products/{product_id}/market-analyses"]["post"]
+    assert path["security"] == [{"SellerSession": []}]
+    assert {"202", "401", "403", "404", "503"} <= set(path["responses"])
+    image = schema["paths"]["/products/{product_id}/images/{image_id}/analyses"]["post"]
+    assert (
+        "202" in image["responses"] and "processing_available" in image["description"]
+    )

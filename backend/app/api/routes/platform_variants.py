@@ -12,6 +12,11 @@ from app.models.auth import User
 from app.models.platform_variant import PlatformVariant, PlatformVariantRevision
 from app.models.post import PostVersion
 from app.services.platform_content import Platform, VariantContent
+from app.services.processing_admission import (
+    DurableProcessingAdmission,
+    get_processing_admission,
+    processing_is_ready,
+)
 
 router = APIRouter(tags=["platform variants"])
 CurrentUser = Annotated[User, Depends(get_current_user)]
@@ -73,7 +78,7 @@ def owned_variant(post_id: int, variant_id: int, user: User, db: DbSession, lock
     return result
 
 
-def response(db, variant):
+def response(db, variant, processing_available=False):
     latest = db.scalar(
         select(PlatformVariantRevision)
         .where(PlatformVariantRevision.variant_id == variant.id)
@@ -82,9 +87,10 @@ def response(db, variant):
     )
     return VariantResponse.model_validate(variant).model_copy(
         update={
+            "processing_available": processing_available,
             "latest_revision": RevisionResponse.model_validate(latest)
             if latest
-            else None
+            else None,
         }
     )
 
@@ -93,7 +99,14 @@ def response(db, variant):
     "/posts/{post_id}/variants", status_code=201, response_model=VariantResponse
 )
 def create_variant(
-    post_id: int, data: VariantCreate, user: CurrentUser, db: DbSession, _: Csrf
+    post_id: int,
+    data: VariantCreate,
+    user: CurrentUser,
+    db: DbSession,
+    _: Csrf,
+    admission: Annotated[
+        DurableProcessingAdmission | None, Depends(get_processing_admission)
+    ],
 ):
     owned_post(post_id, user, db, lock=True)
     source = db.scalar(
@@ -103,6 +116,8 @@ def create_variant(
     )
     if source is None:
         raise HTTPException(404, "Post version not found")
+    if data.content is None and not isinstance(admission, DurableProcessingAdmission):
+        raise HTTPException(503, "Platform generation service is not configured")
     variant = PlatformVariant(
         source_version_id=source.id,
         platform=data.platform,
@@ -110,20 +125,37 @@ def create_variant(
         preferences=data.preferences,
         status="ready" if data.content else "pending",
     )
-    db.add(variant)
-    db.flush()
-    if data.content:
-        db.add(
-            PlatformVariantRevision(
-                variant_id=variant.id,
-                revision_number=1,
-                origin="seller",
-                **data.content.model_dump(),
+    try:
+        if data.content is None:
+            admission.verify_ready(db, "platform_generation")
+        db.add(variant)
+        db.flush()
+        if data.content:
+            db.add(
+                PlatformVariantRevision(
+                    variant_id=variant.id,
+                    revision_number=1,
+                    origin="seller",
+                    **data.content.model_dump(),
+                )
             )
-        )
-    db.commit()
+        else:
+            admission.enqueue(db, "platform_generation", variant.id)
+        db.commit()
+    except Exception:
+        db.rollback()
+        if data.content is None:
+            raise HTTPException(
+                503, "Platform generation service is not configured"
+            ) from None
+        raise
     db.refresh(variant)
-    return response(db, variant)
+    result = response(db, variant)
+    return (
+        result.model_copy(update={"processing_available": True})
+        if data.content is None
+        else result
+    )
 
 
 @router.get("/posts/{post_id}/variants", response_model=VariantList)
@@ -131,11 +163,15 @@ def list_variants(
     post_id: int,
     user: CurrentUser,
     db: DbSession,
+    admission: Annotated[
+        DurableProcessingAdmission | None, Depends(get_processing_admission)
+    ],
     platform: Platform | None = None,
     offset: int = Query(default=0, ge=0),
     limit: int = Query(default=50, ge=1, le=100),
 ):
     owned_post(post_id, user, db)
+    available = processing_is_ready(admission, db, "platform_generation")
     conditions = [PostVersion.post_id == post_id]
     if platform:
         conditions.append(PlatformVariant.platform == platform)
@@ -156,7 +192,7 @@ def list_variants(
         .limit(limit)
     ).all()
     return {
-        "items": [response(db, v) for v in variants],
+        "items": [response(db, v, available) for v in variants],
         "total": total,
         "offset": offset,
         "limit": limit,
@@ -164,8 +200,18 @@ def list_variants(
 
 
 @router.get("/posts/{post_id}/variants/{variant_id}", response_model=VariantResponse)
-def get_variant(post_id: int, variant_id: int, user: CurrentUser, db: DbSession):
-    return response(db, owned_variant(post_id, variant_id, user, db))
+def get_variant(
+    post_id: int,
+    variant_id: int,
+    user: CurrentUser,
+    db: DbSession,
+    admission: Annotated[
+        DurableProcessingAdmission | None, Depends(get_processing_admission)
+    ],
+):
+    variant = owned_variant(post_id, variant_id, user, db)
+    available = processing_is_ready(admission, db, "platform_generation")
+    return response(db, variant, available)
 
 
 @router.post(
