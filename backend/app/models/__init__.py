@@ -1,6 +1,7 @@
 from app.db.base import Base
 from app.models.auth import AuthSession, User, UserProfile
 from app.models.competitor_evidence import CompetitorEvidence
+from app.models.market_analysis import MarketAnalysis
 from app.models.persona_adaptation import PersonaAdaptation
 from app.models.platform_variant import PlatformVariant, PlatformVariantRevision
 from app.models.post import Post, PostVersion
@@ -14,6 +15,7 @@ from app.models.simulation_run import PersonaEvaluation, SimulationCache, Simula
 __all__ = [
     "AuthSession",
     "CompetitorEvidence",
+    "MarketAnalysis",
     "Base",
     "User",
     "UserProfile",
