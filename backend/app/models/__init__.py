@@ -5,6 +5,7 @@ from app.models.persona_adaptation import PersonaAdaptation
 from app.models.post import Post, PostVersion
 from app.models.product import Product
 from app.models.product_image import ProductImage
+from app.models.product_image_analysis import ProductImageAnalysis
 from app.models.simulation import Simulation
 from app.models.simulation_persona import SimulationPersona
 from app.models.simulation_run import PersonaEvaluation, SimulationCache, SimulationRun
@@ -17,6 +18,7 @@ __all__ = [
     "UserProfile",
     "Product",
     "ProductImage",
+    "ProductImageAnalysis",
     "Post",
     "PostVersion",
     "Simulation",

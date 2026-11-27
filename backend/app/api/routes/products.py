@@ -17,7 +17,7 @@ from fastapi import (
 )
 from PIL import Image, UnidentifiedImageError
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
-from sqlalchemy import select
+from sqlalchemy import select, update
 
 from app.api.routes.auth import check_origin, get_current_user
 from app.core.storage import StorageClient, StorageError, get_storage
@@ -249,6 +249,76 @@ def upload_product_image(
             logger.error("Could not remove an orphaned product image")
         raise
     return result
+
+
+@router.put("/products/{product_id}/images/{image_id}", response_model=ImageResponse)
+def replace_product_image(
+    product_id: int,
+    image_id: int,
+    user: CurrentUser,
+    db: DbSession,
+    response: Response,
+    _: Annotated[None, Depends(check_origin)],
+    file: Annotated[UploadFile, File()],
+    storage: Storage,
+):
+    product = owned_product(product_id, user, db)
+    image = db.scalar(
+        select(ProductImage).where(
+            ProductImage.id == image_id, ProductImage.product_id == product.id
+        )
+    )
+    if image is None:
+        raise HTTPException(status_code=404, detail="Image not found")
+    old_key = image.storage_key
+    sort_order = image.sort_order
+    data = file.file.read(MAX_IMAGE_BYTES + 1)
+    if len(data) > MAX_IMAGE_BYTES:
+        raise HTTPException(status_code=413, detail="Image exceeds 5 MB")
+    extension, content_type = validate_image(data)
+    new_key = f"products/{product.id}/{uuid.uuid4().hex}.{extension}"
+    try:
+        storage.upload(new_key, data, content_type)
+    except StorageError:
+        raise HTTPException(
+            status_code=502, detail="Image storage unavailable"
+        ) from None
+    try:
+        # Sign before committing, so a signing error leaves the original active.
+        url = storage.signed_url(new_key)
+        result = db.execute(
+            update(ProductImage)
+            .where(
+                ProductImage.id == image_id,
+                ProductImage.product_id == product_id,
+                ProductImage.storage_key == old_key,
+            )
+            .values(storage_key=new_key)
+        )
+        if result.rowcount != 1:
+            raise HTTPException(
+                status_code=409, detail="Image changed; retry replacement"
+            )
+        db.commit()
+    except Exception as exc:
+        db.rollback()
+        try:
+            storage.remove(new_key)
+        except Exception:
+            logger.error("Could not remove an orphaned replacement image")
+        if isinstance(exc, StorageError):
+            raise HTTPException(
+                status_code=502, detail="Image storage unavailable"
+            ) from None
+        raise
+    try:
+        storage.remove(old_key)
+    except StorageError:
+        logger.error(
+            "Could not remove old image after replacement for image %s", image_id
+        )
+    response.headers["Cache-Control"] = "private, no-store"
+    return ImageResponse(id=image_id, sort_order=sort_order, url=url)
 
 
 @router.get("/products/{product_id}", response_model=ProductDetail)

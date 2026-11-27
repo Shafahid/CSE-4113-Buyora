@@ -321,3 +321,207 @@ def test_duplicate_copies_details_without_copying_images(setup):
             == product_id
         )
     assert len(storage.objects) == 1
+
+
+def make_image(client, product_id):
+    return client.post(
+        f"/products/{product_id}/images",
+        files={"file": ("old.png", image_bytes(), "image/png")},
+        headers=ORIGIN,
+    ).json()["id"]
+
+
+def replacement_file(data=None):
+    return {"file": ("new.png", image_bytes() if data is None else data, "image/png")}
+
+
+def test_replace_image_preserves_identity_and_order(setup):
+    client, engine, storage = setup
+    login(client, "one@example.com")
+    product_id = make_product(client)
+    image_id = make_image(client, product_id)
+    with engine.begin() as conn:
+        conn.execute(
+            ProductImage.__table__.update()
+            .where(ProductImage.id == image_id)
+            .values(sort_order=7)
+        )
+        old_key = conn.execute(
+            select(ProductImage.storage_key).where(ProductImage.id == image_id)
+        ).scalar_one()
+    response = client.put(
+        f"/products/{product_id}/images/{image_id}",
+        files=replacement_file(),
+        headers=ORIGIN,
+    )
+    assert response.status_code == 200
+    assert response.json()["id"] == image_id and response.json()["sort_order"] == 7
+    assert response.headers["cache-control"] == "private, no-store"
+    with engine.connect() as conn:
+        new_key = conn.execute(
+            select(ProductImage.storage_key).where(ProductImage.id == image_id)
+        ).scalar_one()
+    assert new_key != old_key and old_key not in storage.objects
+    assert new_key in storage.objects and response.json()["url"].endswith(new_key)
+    assert "storage_key" not in response.json()
+    assert client.get(f"/products/{product_id}").json()["images"][0]["id"] == image_id
+
+
+@pytest.mark.parametrize(
+    "data,status",
+    [(b"", 422), (b"not an image", 422), (b"x" * (5 * 1024 * 1024 + 1), 413)],
+)
+def test_replace_rejects_invalid_file_without_changing_original(setup, data, status):
+    client, _, storage = setup
+    login(client, "one@example.com")
+    product_id = make_product(client)
+    image_id = make_image(client, product_id)
+    objects = dict(storage.objects)
+    response = client.put(
+        f"/products/{product_id}/images/{image_id}",
+        files=replacement_file(data),
+        headers=ORIGIN,
+    )
+    assert response.status_code == status and storage.objects == objects
+
+
+def test_replace_owner_product_image_and_origin_checks(setup):
+    client, _, storage = setup
+    image = replacement_file()
+    assert (
+        client.put("/products/1/images/1", files=image, headers=ORIGIN).status_code
+        == 401
+    )
+    login(client, "one@example.com")
+    product_id = make_product(client)
+    image_id = make_image(client, product_id)
+    other = make_product(client)
+    path = f"/products/{product_id}/images/{image_id}"
+    assert (
+        client.put(
+            f"/products/{other}/images/{image_id}", files=image, headers=ORIGIN
+        ).status_code
+        == 404
+    )
+    assert (
+        client.put(
+            f"/products/{product_id}/images/99999", files=image, headers=ORIGIN
+        ).status_code
+        == 404
+    )
+    assert (
+        client.put(
+            path, files=image, headers={"Origin": "https://evil.example"}
+        ).status_code
+        == 403
+    )
+    login(client, "two@example.com")
+    assert client.put(path, files=image, headers=ORIGIN).status_code == 404
+    assert len(storage.objects) == 1
+
+
+def test_replace_upload_and_sign_failures_preserve_original(setup, monkeypatch):
+    client, _, storage = setup
+    login(client, "one@example.com")
+    product_id = make_product(client)
+    image_id = make_image(client, product_id)
+    original = dict(storage.objects)
+    path = f"/products/{product_id}/images/{image_id}"
+    storage.fail = True
+    assert client.put(path, files=replacement_file(), headers=ORIGIN).status_code == 502
+    assert storage.objects == original
+    storage.fail = False
+
+    def fail_sign(key):
+        raise StorageError()
+
+    monkeypatch.setattr(storage, "signed_url", fail_sign)
+    assert client.put(path, files=replacement_file(), headers=ORIGIN).status_code == 502
+    assert storage.objects == original
+
+
+def test_replace_database_failure_removes_new_object(setup):
+    client, engine, storage = setup
+    login(client, "one@example.com")
+    product_id = make_product(client)
+    image_id = make_image(client, product_id)
+    original = dict(storage.objects)
+
+    def fail_update(conn, cursor, statement, parameters, context, executemany):
+        if (
+            statement.lstrip().upper().startswith("UPDATE")
+            and "product_images" in statement
+        ):
+            raise RuntimeError("database update failed")
+
+    event.listen(engine, "before_cursor_execute", fail_update)
+    try:
+        with pytest.raises(RuntimeError, match="database update failed"):
+            client.put(
+                f"/products/{product_id}/images/{image_id}",
+                files=replacement_file(),
+                headers=ORIGIN,
+            )
+    finally:
+        event.remove(engine, "before_cursor_execute", fail_update)
+    assert storage.objects == original
+    with engine.connect() as conn:
+        assert conn.execute(select(ProductImage.storage_key)).scalar_one() in original
+
+
+def test_replace_old_cleanup_failure_still_succeeds(setup, monkeypatch):
+    client, engine, storage = setup
+    login(client, "one@example.com")
+    product_id = make_product(client)
+    image_id = make_image(client, product_id)
+    old_key = next(iter(storage.objects))
+
+    def fail_remove(key):
+        raise StorageError()
+
+    monkeypatch.setattr(storage, "remove", fail_remove)
+    response = client.put(
+        f"/products/{product_id}/images/{image_id}",
+        files=replacement_file(),
+        headers=ORIGIN,
+    )
+    assert response.status_code == 200
+    with engine.connect() as conn:
+        current = conn.execute(select(ProductImage.storage_key)).scalar_one()
+    assert (
+        current != old_key and current in storage.objects and old_key in storage.objects
+    )
+
+
+def test_replace_conflict_does_not_delete_newer_image(setup, monkeypatch):
+    client, engine, storage = setup
+    login(client, "one@example.com")
+    product_id = make_product(client)
+    image_id = make_image(client, product_id)
+    original_key = next(iter(storage.objects))
+    competing_key = f"products/{product_id}/competing.png"
+    upload = storage.upload
+
+    def concurrent_upload(key, data, content_type):
+        upload(key, data, content_type)
+        storage.objects[competing_key] = (data, content_type)
+        with engine.begin() as conn:
+            conn.execute(
+                ProductImage.__table__.update()
+                .where(ProductImage.id == image_id)
+                .values(storage_key=competing_key)
+            )
+
+    monkeypatch.setattr(storage, "upload", concurrent_upload)
+    response = client.put(
+        f"/products/{product_id}/images/{image_id}",
+        files=replacement_file(),
+        headers=ORIGIN,
+    )
+    assert response.status_code == 409
+    with engine.connect() as conn:
+        assert (
+            conn.execute(select(ProductImage.storage_key)).scalar_one() == competing_key
+        )
+    assert competing_key in storage.objects and original_key in storage.objects
+    assert len(storage.objects) == 2
