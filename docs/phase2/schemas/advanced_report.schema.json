@@ -1,0 +1,89 @@
+{
+  "$defs": {
+    "AnalysisAttachment": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "1.0",
+          "default": "1.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "id": {
+          "exclusiveMinimum": 0,
+          "title": "Id",
+          "type": "integer"
+        },
+        "completed_at": {
+          "format": "date-time",
+          "title": "Completed At",
+          "type": "string"
+        },
+        "result": {
+          "additionalProperties": true,
+          "title": "Result",
+          "type": "object"
+        },
+        "input_snapshot": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Input Snapshot"
+        },
+        "image_revision": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Image Revision"
+        }
+      },
+      "required": [
+        "id",
+        "completed_at",
+        "result"
+      ],
+      "title": "AnalysisAttachment",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1.0",
+      "default": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "image_insights": {
+      "items": {
+        "$ref": "#/$defs/AnalysisAttachment"
+      },
+      "maxItems": 10,
+      "title": "Image Insights",
+      "type": "array"
+    },
+    "market_comparisons": {
+      "items": {
+        "$ref": "#/$defs/AnalysisAttachment"
+      },
+      "maxItems": 5,
+      "title": "Market Comparisons",
+      "type": "array"
+    }
+  },
+  "title": "OptionalAnalyses",
+  "type": "object"
+}

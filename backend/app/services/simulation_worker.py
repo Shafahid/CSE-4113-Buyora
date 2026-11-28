@@ -38,11 +38,45 @@ def worker_failure_hint(error):
         return "Database authentication failed; check DATABASE_URL credentials"
     if state == "53300":
         return "Database connection limit reached; check pooler capacity"
+    if state == "42501":
+        return (
+            "Database permission denied; check the runtime role's schema/table grants"
+        )
     message = str(original).lower()
-    if any(term in message for term in ("getaddrinfo", "could not translate host")):
+    if any(
+        term in message
+        for term in ("getaddrinfo", "could not translate host", "name resolution")
+    ):
         return "Database hostname could not be resolved; check DNS and DATABASE_URL"
+    if any(term in message for term in ("maxclients", "too many clients", "pool_size")):
+        return "Database connection limit reached; check pooler capacity"
+    if "tenant or user not found" in message:
+        return "Database pooler rejected the user; check DATABASE_URL pooler settings"
+    if "password authentication failed" in message:
+        return "Database authentication failed; check DATABASE_URL credentials"
     if "timeout" in message or "timed out" in message:
         return "Database connection timed out; check network and pooler availability"
+    if "connection refused" in message or "actively refused" in message:
+        return "Database connection refused; check host, port and server availability"
+    if (
+        getattr(error, "connection_invalidated", False)
+        or (state and (state.startswith("08") or state in {"57P01", "57P02", "57P03"}))
+        or any(
+            term in message
+            for term in (
+                "connection reset",
+                "connection is closed",
+                "connection has been closed",
+                "closed the connection",
+                "ssl connection has been closed",
+                "eof detected",
+                "ssl syscall error",
+            )
+        )
+    ):
+        return (
+            "Database connection dropped; worker will reconnect; check network/pooler"
+        )
     return "Check database connectivity and migrations"
 
 
@@ -387,7 +421,8 @@ async def execute_run(factory, settings, run_id, token, evaluator=None):
 
 
 async def worker_loop(factory, settings):
-    warned = False
+    warned = None
+    retry_delay = 1
     while True:
         job = None
         stage = "persona adaptation queue"
@@ -403,13 +438,18 @@ async def worker_loop(factory, settings):
             if job:
                 stage = "simulation execution"
                 await execute_run(factory, settings, *job)
-            warned = False
+            if warned:
+                logger.info("Simulation worker database queues recovered")
+            warned = None
+            retry_delay = 1
         except Exception as error:
             if job:
                 with contextlib.suppress(Exception):
                     await asyncio.to_thread(expire_lease, factory, *job)
             # No provider exceptions, SQL parameters, inputs or secrets in logs.
-            if not warned:
+            hint = worker_failure_hint(error)
+            failure = (type(error).__name__, stage, hint)
+            if warned != failure:
                 # Some server/test logging configurations disable existing
                 # module loggers. Operational worker failures must remain visible.
                 logger.disabled = False
@@ -417,9 +457,12 @@ async def worker_loop(factory, settings):
                     "Simulation worker unavailable (%s) during %s. %s",
                     type(error).__name__,
                     stage,
-                    worker_failure_hint(error),
+                    hint,
                 )
-                warned = True
+                warned = failure
+            await asyncio.sleep(retry_delay)
+            retry_delay = min(retry_delay * 2, 30)
+            continue
         await asyncio.sleep(1)
 
 

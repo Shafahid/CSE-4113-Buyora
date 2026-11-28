@@ -26,8 +26,30 @@ uv run alembic upgrade head
 uv run alembic current
 ```
 
-The expected revision is `0011`. Revision 0011 adds persisted job stage and
-expected-persona count and backfills existing runs transactionally.
+The worker requires revision `0011` or later. Revision 0011 adds persisted job
+stage and expected-persona count and backfills existing runs transactionally.
+Use `alembic heads` to see the current repository target.
+
+If either queue logs `Simulation worker unavailable (OperationalError)`, run:
+
+```powershell
+uv run python scripts/check_simulation_setup.py
+```
+
+The check tests the runtime database connection, compares applied revisions with
+the repository heads, and verifies mapped columns and SELECT access for all four
+worker tables, including `persona_adaptations`. It reads no job payloads and
+prints no credentials. A ready worker schema and pending later migrations are
+reported separately. The command exits with code 1 for connection/schema errors
+or pending migrations. After reviewing pending migrations, use
+`uv run python scripts/check_simulation_setup.py --apply` to upgrade a known
+revision 0007 or later to head and recheck the runtime database.
+
+Worker warnings distinguish authentication, DNS, timeout, refused/dropped
+connections, pooler capacity and permission failures. Repeated failures back off
+from 1 to 30 seconds; a successful queue poll resets the delay and logs recovery.
+If checks pass while warnings recur, inspect network and pooler availability at
+the time of the warning. Readiness alone does not verify the worker schema.
 
 ## Starting the API and worker
 

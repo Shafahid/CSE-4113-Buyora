@@ -11,7 +11,7 @@ from typing import Literal
 
 from sqlalchemy.orm import Session
 
-JobKind = Literal["image_analysis", "platform_generation"]
+JobKind = Literal["image_analysis", "market_analysis", "platform_generation"]
 
 
 class DurableProcessingAdmission(ABC):

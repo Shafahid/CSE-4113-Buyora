@@ -67,6 +67,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         allow_credentials=True,
         allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
         allow_headers=["Authorization", "Content-Type"],
+        expose_headers=["Retry-After"],
     )
     application.include_router(api_router)
 
@@ -106,6 +107,20 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 responses.setdefault(
                     "404", {"description": "Resource missing or inaccessible"}
                 )
+                if method == "post" and (
+                    path.endswith("/analyses")
+                    or path.endswith("/market-analyses")
+                    or path.endswith("/variants")
+                ):
+                    responses["429"] = {
+                        "description": "AI rate or daily token budget exceeded",
+                        "headers": {"Retry-After": {"schema": {"type": "integer"}}},
+                        "content": {
+                            "application/json": {
+                                "example": {"detail": "AI request rate limit reached"}
+                            }
+                        },
+                    }
                 if method in {"post", "put", "patch", "delete"}:
                     responses.setdefault(
                         "403", {"description": "Origin is not trusted"}

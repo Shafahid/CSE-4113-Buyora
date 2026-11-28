@@ -1,0 +1,28 @@
+{
+  "properties": {
+    "id": {
+      "title": "Id",
+      "type": "integer"
+    },
+    "sort_order": {
+      "title": "Sort Order",
+      "type": "integer"
+    },
+    "url": {
+      "title": "Url",
+      "type": "string"
+    },
+    "image_revision": {
+      "title": "Image Revision",
+      "type": "string"
+    }
+  },
+  "required": [
+    "id",
+    "sort_order",
+    "url",
+    "image_revision"
+  ],
+  "title": "ImageResponse",
+  "type": "object"
+}

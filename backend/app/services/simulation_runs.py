@@ -264,6 +264,12 @@ def prepare_inputs(
             "json_mode": settings.llm_json_mode,
         },
     }
+    if data.image_analysis_ids or data.market_analysis_ids:
+        from app.services.analysis_attachments import snapshot_analyses
+
+        inputs["optional_analyses"] = snapshot_analyses(
+            db, user_id, product.id, data.image_analysis_ids, data.market_analysis_ids
+        )
     # UI identity/colour and list order do not change a buyer's evaluation.
     semantic_profiles = sorted(
         [
@@ -454,6 +460,10 @@ def build_report(run, rows):
     return {
         "id": run.id,
         "source": "server",
+        "optionalAnalyses": source.get(
+            "optional_analyses",
+            {"schema_version": "1.0", "image_insights": [], "market_comparisons": []},
+        ),
         "status": run.status,
         "stage": run.stage,
         "expectedPersonaCount": run.expected_personas,

@@ -1,0 +1,49 @@
+{
+  "example_only": true,
+  "schema": "AnalysisResponse",
+  "payload": {
+    "schema_version": "1.0",
+    "id": 1,
+    "product_id": 1,
+    "original_image_id": 1,
+    "language": "en",
+    "status": "completed",
+    "analysis_result": {
+      "schema_version": "1.0",
+      "clarity": {
+        "assessment": "good",
+        "feedback": "Example: the product is visible."
+      },
+      "lighting": {
+        "assessment": "good",
+        "feedback": "Example: the product is visible."
+      },
+      "composition": {
+        "assessment": "good",
+        "feedback": "Example: the product is visible."
+      },
+      "background": {
+        "assessment": "good",
+        "feedback": "Example: the product is visible."
+      },
+      "text_readability": {
+        "assessment": "good",
+        "feedback": "Example: the product is visible."
+      },
+      "product_consistency": {
+        "assessment": "good",
+        "feedback": "Example: the product is visible."
+      },
+      "suggestions": [
+        "Example: use a plain background."
+      ]
+    },
+    "error_message": null,
+    "created_at": "2026-11-28T06:00:00Z",
+    "updated_at": "2026-11-28T06:00:00Z",
+    "completed_at": "2026-11-28T06:00:00Z",
+    "processing_available": false,
+    "image_revision": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "is_current_image": true
+  }
+}

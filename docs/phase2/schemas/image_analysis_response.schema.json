@@ -1,0 +1,209 @@
+{
+  "$defs": {
+    "ImageAnalysisResult": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "1.0",
+          "default": "1.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "clarity": {
+          "$ref": "#/$defs/ImageFinding"
+        },
+        "lighting": {
+          "$ref": "#/$defs/ImageFinding"
+        },
+        "composition": {
+          "$ref": "#/$defs/ImageFinding"
+        },
+        "background": {
+          "$ref": "#/$defs/ImageFinding"
+        },
+        "text_readability": {
+          "$ref": "#/$defs/ImageFinding"
+        },
+        "product_consistency": {
+          "$ref": "#/$defs/ImageFinding"
+        },
+        "suggestions": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 20,
+          "title": "Suggestions",
+          "type": "array"
+        }
+      },
+      "required": [
+        "clarity",
+        "lighting",
+        "composition",
+        "background",
+        "text_readability",
+        "product_consistency",
+        "suggestions"
+      ],
+      "title": "ImageAnalysisResult",
+      "type": "object"
+    },
+    "ImageFinding": {
+      "additionalProperties": false,
+      "properties": {
+        "assessment": {
+          "enum": [
+            "good",
+            "needs_improvement",
+            "not_applicable",
+            "uncertain"
+          ],
+          "title": "Assessment",
+          "type": "string"
+        },
+        "feedback": {
+          "anyOf": [
+            {
+              "maxLength": 2000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Feedback"
+        }
+      },
+      "required": [
+        "assessment",
+        "feedback"
+      ],
+      "title": "ImageFinding",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "schema_version": {
+      "const": "1.0",
+      "default": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "id": {
+      "title": "Id",
+      "type": "integer"
+    },
+    "product_id": {
+      "title": "Product Id",
+      "type": "integer"
+    },
+    "original_image_id": {
+      "title": "Original Image Id",
+      "type": "integer"
+    },
+    "language": {
+      "enum": [
+        "en",
+        "bn"
+      ],
+      "title": "Language",
+      "type": "string"
+    },
+    "status": {
+      "enum": [
+        "pending",
+        "processing",
+        "completed",
+        "failed"
+      ],
+      "title": "Status",
+      "type": "string"
+    },
+    "analysis_result": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ImageAnalysisResult"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "error_message": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Error Message"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "updated_at": {
+      "format": "date-time",
+      "title": "Updated At",
+      "type": "string"
+    },
+    "completed_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Completed At"
+    },
+    "processing_available": {
+      "default": false,
+      "title": "Processing Available",
+      "type": "boolean"
+    },
+    "image_revision": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Image Revision"
+    },
+    "is_current_image": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Is Current Image"
+    }
+  },
+  "required": [
+    "id",
+    "product_id",
+    "original_image_id",
+    "language",
+    "status",
+    "analysis_result",
+    "error_message",
+    "created_at",
+    "updated_at",
+    "completed_at"
+  ],
+  "title": "AnalysisResponse",
+  "type": "object"
+}

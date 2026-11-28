@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy import func, select
 
@@ -11,6 +11,7 @@ from app.db.session import DbSession
 from app.models.auth import User
 from app.models.product_image import ProductImage
 from app.models.product_image_analysis import ProductImageAnalysis
+from app.services.ai_limits import lock_ai_seller, reserve_ai_request
 from app.services.image_analysis import ImageAnalysisResult
 from app.services.processing_admission import (
     DurableProcessingAdmission,
@@ -32,6 +33,7 @@ class AnalysisRequest(BaseModel):
 
 class AnalysisResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
+    schema_version: Literal["1.0"] = "1.0"
     id: int
     product_id: int
     original_image_id: int
@@ -101,6 +103,7 @@ def request_analysis(
     product_id: int,
     image_id: int,
     data: AnalysisRequest,
+    request: Request,
     user: CurrentUser,
     db: DbSession,
     _: Csrf,
@@ -108,6 +111,7 @@ def request_analysis(
         DurableProcessingAdmission | None, Depends(get_processing_admission)
     ],
 ):
+    lock_ai_seller(db, user.id)
     image = owned_image(product_id, image_id, user, db, lock=True)
     if not isinstance(admission, DurableProcessingAdmission):
         raise HTTPException(503, "Image analysis service is not configured")
@@ -124,8 +128,26 @@ def request_analysis(
         admission.verify_ready(db, "image_analysis")
         db.add(analysis)
         db.flush()
+        product = owned_product(product_id, user, db)
+        reserve_ai_request(
+            db,
+            user.id,
+            "image_analysis",
+            analysis.id,
+            request.app.state.settings,
+            {
+                "product": {
+                    key: getattr(product, key)
+                    for key in ("name", "category", "description", "features")
+                },
+                "language": data.language,
+            },
+        )
         admission.enqueue(db, "image_analysis", analysis.id)
         db.commit()
+    except HTTPException:
+        db.rollback()
+        raise
     except Exception:
         db.rollback()
         raise HTTPException(503, "Image analysis service is not configured") from None

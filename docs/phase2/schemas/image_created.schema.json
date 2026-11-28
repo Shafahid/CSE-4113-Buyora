@@ -1,0 +1,23 @@
+{
+  "properties": {
+    "id": {
+      "title": "Id",
+      "type": "integer"
+    },
+    "product_id": {
+      "title": "Product Id",
+      "type": "integer"
+    },
+    "sort_order": {
+      "title": "Sort Order",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "id",
+    "product_id",
+    "sort_order"
+  ],
+  "title": "ImageCreated",
+  "type": "object"
+}

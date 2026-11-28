@@ -1,0 +1,34 @@
+{
+  "example_only": true,
+  "schema": "ImageAnalysisResult",
+  "payload": {
+    "schema_version": "1.0",
+    "clarity": {
+      "assessment": "good",
+      "feedback": "Example: the product is visible."
+    },
+    "lighting": {
+      "assessment": "good",
+      "feedback": "Example: the product is visible."
+    },
+    "composition": {
+      "assessment": "good",
+      "feedback": "Example: the product is visible."
+    },
+    "background": {
+      "assessment": "good",
+      "feedback": "Example: the product is visible."
+    },
+    "text_readability": {
+      "assessment": "good",
+      "feedback": "Example: the product is visible."
+    },
+    "product_consistency": {
+      "assessment": "good",
+      "feedback": "Example: the product is visible."
+    },
+    "suggestions": [
+      "Example: use a plain background."
+    ]
+  }
+}

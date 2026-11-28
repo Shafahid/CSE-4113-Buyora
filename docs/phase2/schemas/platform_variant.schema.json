@@ -1,0 +1,86 @@
+{
+  "$defs": {
+    "VariantContent": {
+      "additionalProperties": false,
+      "properties": {
+        "headline": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Headline",
+          "type": "string"
+        },
+        "body": {
+          "maxLength": 10000,
+          "minLength": 1,
+          "title": "Body",
+          "type": "string"
+        },
+        "offer": {
+          "anyOf": [
+            {
+              "maxLength": 2000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Offer"
+        },
+        "call_to_action": {
+          "anyOf": [
+            {
+              "maxLength": 1000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Call To Action"
+        },
+        "hashtags": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 50,
+          "title": "Hashtags",
+          "type": "array"
+        }
+      },
+      "required": [
+        "headline",
+        "body"
+      ],
+      "title": "VariantContent",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1.0",
+      "default": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "content": {
+      "$ref": "#/$defs/VariantContent"
+    },
+    "warnings": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 20,
+      "title": "Warnings",
+      "type": "array"
+    }
+  },
+  "required": [
+    "content"
+  ],
+  "title": "PlatformGenerationResult",
+  "type": "object"
+}

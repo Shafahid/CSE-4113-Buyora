@@ -1,0 +1,196 @@
+{
+  "$defs": {
+    "RevisionResponse": {
+      "additionalProperties": false,
+      "properties": {
+        "headline": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Headline",
+          "type": "string"
+        },
+        "body": {
+          "maxLength": 10000,
+          "minLength": 1,
+          "title": "Body",
+          "type": "string"
+        },
+        "offer": {
+          "anyOf": [
+            {
+              "maxLength": 2000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Offer"
+        },
+        "call_to_action": {
+          "anyOf": [
+            {
+              "maxLength": 1000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Call To Action"
+        },
+        "hashtags": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 50,
+          "title": "Hashtags",
+          "type": "array"
+        },
+        "id": {
+          "title": "Id",
+          "type": "integer"
+        },
+        "variant_id": {
+          "title": "Variant Id",
+          "type": "integer"
+        },
+        "revision_number": {
+          "title": "Revision Number",
+          "type": "integer"
+        },
+        "origin": {
+          "enum": [
+            "seller",
+            "ai"
+          ],
+          "title": "Origin",
+          "type": "string"
+        },
+        "created_at": {
+          "format": "date-time",
+          "title": "Created At",
+          "type": "string"
+        }
+      },
+      "required": [
+        "headline",
+        "body",
+        "id",
+        "variant_id",
+        "revision_number",
+        "origin",
+        "created_at"
+      ],
+      "title": "RevisionResponse",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "schema_version": {
+      "const": "1.0",
+      "default": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "id": {
+      "title": "Id",
+      "type": "integer"
+    },
+    "source_version_id": {
+      "title": "Source Version Id",
+      "type": "integer"
+    },
+    "platform": {
+      "enum": [
+        "facebook",
+        "instagram",
+        "tiktok",
+        "whatsapp"
+      ],
+      "title": "Platform",
+      "type": "string"
+    },
+    "language": {
+      "enum": [
+        "en",
+        "bn"
+      ],
+      "title": "Language",
+      "type": "string"
+    },
+    "preferences": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Preferences"
+    },
+    "status": {
+      "enum": [
+        "pending",
+        "processing",
+        "ready",
+        "failed"
+      ],
+      "title": "Status",
+      "type": "string"
+    },
+    "error_message": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Error Message"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "updated_at": {
+      "format": "date-time",
+      "title": "Updated At",
+      "type": "string"
+    },
+    "processing_available": {
+      "default": false,
+      "title": "Processing Available",
+      "type": "boolean"
+    },
+    "latest_revision": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/RevisionResponse"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    }
+  },
+  "required": [
+    "id",
+    "source_version_id",
+    "platform",
+    "language",
+    "preferences",
+    "status",
+    "error_message",
+    "created_at",
+    "updated_at"
+  ],
+  "title": "VariantResponse",
+  "type": "object"
+}

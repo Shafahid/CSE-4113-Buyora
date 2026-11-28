@@ -398,6 +398,9 @@ processes can safely compete for jobs, while each job respects
 `SIMULATION_CONCURRENCY`. Apply migration 0011 before running this version.
 Detailed operations, recovery behavior and report verification are documented
 in [Simulation jobs, reports, and recovery](docs/simulation-reports.md).
+For queue database warnings, run `uv run python scripts/check_simulation_setup.py`
+to verify connectivity, worker tables/columns and pending repository migrations
+without printing credentials or reading job payloads.
 
 ### Report history and comparison
 
@@ -502,6 +505,13 @@ still referenced by an active image or analysis. Review the target environment
 before running it; it deletes eligible objects from that environment's bucket.
 
 ## Recovery of previously pending AI requests
+
+The Stage 1 contract, provenance fields, optional report attachments and shared
+AI request/token limits are documented in the
+[Phase 2 handover package](../docs/phase2/handoffs/01-shoma-to-mehdi.md).
+Apply revision 0017 before running this code. Generate contract artifacts with
+`uv run python scripts/export_phase2_contract.py`; verify fixtures with
+`uv run pytest -q tests/test_phase2_contract.py`.
 
 Image-analysis and platform-generation requests now return `503` without saving a
 new pending record when durable processing is unavailable. Previously saved

@@ -10,6 +10,8 @@ from typing import Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.schemas.phase2 import ExecutionBudget
+
 
 class ProductSnapshot(BaseModel):
     id: int
@@ -34,16 +36,21 @@ class EvidenceSnapshot(BaseModel):
     platform: str | None
     observed_at: date
     notes: str | None
+    source_url: str | None = None
+    source_note: str | None = None
 
 
 class MarketInput(BaseModel):
+    schema_version: Literal["1.0"] = "1.0"
     product: ProductSnapshot
     competitors: list[EvidenceSnapshot] = Field(min_length=1, max_length=20)
     language: Literal["en", "bn"]
+    budget: ExecutionBudget = Field(default_factory=ExecutionBudget)
 
 
 class MarketResult(BaseModel):
     model_config = ConfigDict(extra="forbid")
+    schema_version: Literal["1.0"] = "1.0"
     # These fields are AI interpretations, not verified facts.
     feature_comparison: str = Field(min_length=1, max_length=3000)
     offer_comparison: str = Field(min_length=1, max_length=3000)
@@ -112,6 +119,10 @@ def process_market_analysis(
                 )
             )
         inputs = MarketInput.model_validate(snapshot)
+        from app.services.ai_limits import request_budget
+
+        with session_factory() as db:
+            inputs.budget = request_budget(db, "market_analysis", analysis_id)
         output = MarketResult.model_validate(analyzer.analyze(inputs))
         if not verify_grounding(inputs, output):
             raise ValueError("Output did not pass grounding review")

@@ -57,6 +57,8 @@ class CompetitorEvidence(Base):
     currency: Mapped[str | None] = mapped_column(Text)
     offer: Mapped[str | None] = mapped_column(Text)
     platform: Mapped[str | None] = mapped_column(Text)
+    source_url: Mapped[str | None] = mapped_column(Text)
+    source_note: Mapped[str | None] = mapped_column(Text)
     observed_at: Mapped[date] = mapped_column(Date, nullable=False)
     notes: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(

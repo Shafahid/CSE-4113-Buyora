@@ -134,7 +134,10 @@ The existing simulation workflow includes setup, editable personas, execution, p
 
 ## Database and migrations
 
-The Alembic revision chain in this checkout ends at `0016`. Revision `0016` and the image-history changes are currently uncommitted working-tree changes; ensure they are included in the code being deployed.
+The Alembic revision chain in this checkout ends at `0017`. Revision `0017` adds
+nullable competitor provenance and private optional-AI budget reservations.
+The detailed Stage 1 package, contract fixtures and acceptance status are in
+[docs/phase2](../docs/phase2/handoffs/01-shoma-to-mehdi.md).
 
 | Revision | Database change |
 | --- | --- |
@@ -145,6 +148,7 @@ The Alembic revision chain in this checkout ends at `0016`. Revision `0016` and 
 | `0014` | `public.platform_variants` and `public.platform_variant_revisions`. |
 | `0015` | `public.market_analyses`, including input snapshots. |
 | `0016` | Private image snapshot references and `public.storage_cleanup_tasks`. |
+| `0017` | Competitor source URL/note and private per-seller AI admission reservations. |
 
 Before upgrading, confirm the target database and back up its data. Configure `DATABASE_URL` and, if needed, `MIGRATION_DATABASE_URL` for the intended environment. From `backend/`:
 

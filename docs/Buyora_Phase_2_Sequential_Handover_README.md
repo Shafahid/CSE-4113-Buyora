@@ -100,6 +100,9 @@ Points are **planning estimates**, not a measure of hours or actual completed wo
 
 # 4. STAGE 1 — Shoma: Finish backend APIs, schema & security
 
+
+**Implementation update (2026-11-28):** Stage 1 technical work is verified: 260 backend tests passed, including isolated PostgreSQL checks; lint, formatting and frontend type checking passed. Team contract approval, PR merge and Mehdi acceptance remain pending. See the [Stage 1 handover package](phase2/handoffs/01-shoma-to-mehdi.md).
+
 **Start:** After the contract PR is approved.  
 **Rule:** Do not wait for Mehdi to implement AI. Create stable service interfaces and use mocks in backend tests.  
 **Primary ownership:** `backend/app/models/`, `backend/app/api/routes/`, schema and migration files, security/dependencies.
@@ -107,45 +110,45 @@ Points are **planning estimates**, not a measure of hours or actual completed wo
 ### SH1. Contracts & version-safe database extensions — **5 points**
 
 - [ ] Lead Stage 0 contract meeting; record decisions and data examples.
-- [ ] Create SQLAlchemy models for image metadata, competitor evidence, source/date fields, saved platform variants, and **optional** analysis attachments.
-- [ ] Define foreign keys, indexes, ownership checks, unique constraints, timestamps, and schema versions.
-- [ ] Preserve Phase 1 product/post/report data; make migrations **backwards compatible**.
-- [ ] Review Alembic upgrade and downgrade behavior against PostgreSQL in a test/staging DB.
-- [ ] Provide representative JSON responses for every new API.
+- [x] Create SQLAlchemy models for image metadata, competitor evidence, source/date fields, saved platform variants, and **optional** analysis attachments.
+- [x] Define foreign keys, indexes, ownership checks, unique constraints, timestamps, and schema versions.
+- [x] Preserve Phase 1 product/post/report data; make migrations **backwards compatible**.
+- [x] Review Alembic upgrade and downgrade behavior against PostgreSQL in a test/staging DB.
+- [x] Provide representative JSON responses for every new API.
 
 ### SH2. Product images + competitor evidence APIs — **8 points**
 
-- [ ] Implement authenticated image upload, replace, list, and delete operations.
-- [ ] Validate file type, size, user ownership, and object-storage access; never expose storage keys.
-- [ ] Return secure image references for AI analysis without exposing private seller content publicly.
-- [ ] Add competitor records: name/category, current observed price, offer, platform, source, observation date, and optional seller notes.
-- [ ] Support manually entered competitor evidence first; any external ingestion must be lawful, source-grounded, and explicitly optional.
-- [ ] Implement list/search/filter/delete and ownership validation on competitor entries.
-- [ ] Add validation and cross-user access tests.
+- [x] Implement authenticated image upload, replace, list, and delete operations.
+- [x] Validate file type, size, user ownership, and object-storage access; never expose storage keys.
+- [x] Return secure image references for AI analysis without exposing private seller content publicly.
+- [x] Add competitor records: name/category, current observed price, offer, platform, source, observation date, and optional seller notes.
+- [x] Support manually entered competitor evidence first; any external ingestion must be lawful, source-grounded, and explicitly optional.
+- [x] Implement list/search/filter/delete and ownership validation on competitor entries.
+- [x] Add validation and cross-user access tests.
 
 ### SH3. Platform variants & AI integration endpoints — **6 points**
 
-- [ ] Define and implement versioned content-variant storage for Facebook, Instagram, TikTok, and WhatsApp.
-- [ ] Preserve original promotional posts and immutable historical report inputs.
-- [ ] Provide request/response endpoints to submit/retrieve image analysis, market comparisons, and platform content suggestions.
-- [ ] Define provider-neutral *service interfaces* that Mehdi will implement in Stage 2.
-- [ ] For Stage 1 tests, return explicit **mock/example data** through test doubles only—do not label placeholder output as live AI results.
-- [ ] Add status/error responses for unavailable image, missing market evidence, timeouts, and unsupported inputs.
+- [x] Define and implement versioned content-variant storage for Facebook, Instagram, TikTok, and WhatsApp.
+- [x] Preserve original promotional posts and immutable historical report inputs.
+- [x] Provide request/response endpoints to submit/retrieve image analysis, market comparisons, and platform content suggestions.
+- [x] Define provider-neutral *service interfaces* that Mehdi will implement in Stage 2.
+- [x] For Stage 1 tests, return explicit **mock/example data** through test doubles only—do not label placeholder output as live AI results.
+- [x] Add status/error responses for unavailable image, missing market evidence, timeouts, and unsupported inputs.
 
 ### SH4. API quality, security & final handover — **6 points**
 
-- [ ] Enforce authentication, record-level authorization, input validation, and safe uploaded-file handling.
-- [ ] Add rate limiting and AI request/cost limits at expensive API entry points.
-- [ ] Check query/index performance, pagination, appropriate session lifecycles and CORS configuration.
-- [ ] Run backend pytest, Ruff, PostgreSQL migration tests, and API contract tests.
-- [ ] Generate/update OpenAPI docs; provide example `curl`/HTTP requests, required env-variable names (not values), and a migration checklist.
-- [ ] Demonstrate old Phase 1 APIs still work with the new migration.
+- [x] Enforce authentication, record-level authorization, input validation, and safe uploaded-file handling.
+- [x] Add rate limiting and AI request/cost limits at expensive API entry points.
+- [x] Check query/index performance, pagination, appropriate session lifecycles and CORS configuration.
+- [x] Run backend pytest, Ruff, PostgreSQL migration tests, and API contract tests.
+- [x] Generate/update OpenAPI docs; provide example `curl`/HTTP requests, required env-variable names (not values), and a migration checklist.
+- [x] Demonstrate old Phase 1 APIs still work with the new migration.
 
 **Stage 1 handover package → Mehdi**
 
 - [ ] All Shoma PRs merged into `main`.
-- [ ] A reproducible database migration and populated test fixtures.
-- [ ] Working authentication/image/competitor/platform endpoints in the API docs.
+- [x] A reproducible database migration and populated test fixtures.
+- [x] Working authentication/image/competitor/platform endpoints in the API docs.
 - [ ] Frozen AI callable interfaces with documented Pydantic schemas and sample payloads.
 - [ ] Passing security/API/migration tests and no secrets committed.
 

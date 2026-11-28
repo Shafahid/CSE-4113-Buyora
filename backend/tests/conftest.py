@@ -23,6 +23,11 @@ def isolated_environment(monkeypatch: pytest.MonkeyPatch) -> None:
         "SIMULATION_MAX_MODEL_CALLS",
         "SIMULATION_TOKEN_BUDGET",
         "SIMULATION_WORKER_ENABLED",
+        "PHASE2_AI_REQUESTS_PER_MINUTE",
+        "PHASE2_AI_DAILY_TOKEN_BUDGET",
+        "PHASE2_AI_MAX_INPUT_TOKENS",
+        "PHASE2_AI_MAX_OUTPUT_TOKENS",
+        "PHASE2_AI_TIMEOUT_SECONDS",
     ):
         monkeypatch.delenv(name, raising=False)
     monkeypatch.setitem(Settings.model_config, "env_file", None)

@@ -39,6 +39,19 @@ class RunCreate(BaseModel):
     personas: list[PersonaProfile] = Field(min_length=2, max_length=30)
     mode: Literal["quick", "standard", "deep", "extended", "custom"] | None = None
     fresh: bool = False
+    image_analysis_ids: list[Annotated[int, Field(gt=0, strict=True)]] = Field(
+        default_factory=list, max_length=10
+    )
+    market_analysis_ids: list[Annotated[int, Field(gt=0, strict=True)]] = Field(
+        default_factory=list, max_length=5
+    )
+
+    @field_validator("image_analysis_ids", "market_analysis_ids")
+    @classmethod
+    def unique_analysis_ids(cls, value):
+        if len(value) != len(set(value)):
+            raise ValueError("Analysis IDs must be unique")
+        return value
 
     @field_validator("audience")
     @classmethod

@@ -1,0 +1,66 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1.0",
+      "default": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "feature_comparison": {
+      "maxLength": 3000,
+      "minLength": 1,
+      "title": "Feature Comparison",
+      "type": "string"
+    },
+    "offer_comparison": {
+      "maxLength": 3000,
+      "minLength": 1,
+      "title": "Offer Comparison",
+      "type": "string"
+    },
+    "competitive_strengths": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 20,
+      "title": "Competitive Strengths",
+      "type": "array"
+    },
+    "competitive_weaknesses": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 20,
+      "title": "Competitive Weaknesses",
+      "type": "array"
+    },
+    "marketing_recommendations": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 20,
+      "title": "Marketing Recommendations",
+      "type": "array"
+    },
+    "limitations": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 20,
+      "minItems": 1,
+      "title": "Limitations",
+      "type": "array"
+    }
+  },
+  "required": [
+    "feature_comparison",
+    "offer_comparison",
+    "competitive_strengths",
+    "competitive_weaknesses",
+    "marketing_recommendations",
+    "limitations"
+  ],
+  "title": "MarketResult",
+  "type": "object"
+}

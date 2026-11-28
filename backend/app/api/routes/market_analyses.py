@@ -11,12 +11,18 @@ from app.db.session import DbSession
 from app.models.auth import User
 from app.models.competitor_evidence import CompetitorEvidence
 from app.models.market_analysis import MarketAnalysis
+from app.schemas.phase2 import ExecutionBudget
+from app.services.ai_limits import lock_ai_seller, reserve_ai_request
 from app.services.market_analysis import (
     EvidenceSnapshot,
     MarketInput,
     MarketResult,
     ProductSnapshot,
     price_observations,
+)
+from app.services.processing_admission import (
+    DurableProcessingAdmission,
+    get_processing_admission,
 )
 
 router = APIRouter(tags=["market analyses"])
@@ -44,6 +50,7 @@ class MarketRequest(BaseModel):
 
 class MarketResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
+    schema_version: Literal["1.0"] = "1.0"
     id: int
     product_id: int
     status: Literal["pending", "processing", "completed", "failed"]
@@ -99,7 +106,11 @@ def create_analysis(
     user: CurrentUser,
     db: DbSession,
     _: Csrf,
+    admission: Annotated[
+        DurableProcessingAdmission | None, Depends(get_processing_admission)
+    ],
 ):
+    lock_ai_seller(db, user.id)
     product = owned_product(product_id, user, db)
     records = db.scalars(
         select(CompetitorEvidence).where(
@@ -112,7 +123,7 @@ def create_analysis(
     if len(by_id) != len(data.competitor_evidence_ids):
         raise HTTPException(404, "Competitor evidence not found")
     # A worker must be explicitly installed before accepting durable work.
-    if not getattr(request.app.state, "market_analysis_processing_available", False):
+    if not isinstance(admission, DurableProcessingAdmission):
         raise HTTPException(503, "Market analysis service is not configured")
     snapshot = MarketInput(
         product=ProductSnapshot.model_validate(product, from_attributes=True),
@@ -129,8 +140,28 @@ def create_analysis(
         status="pending",
         input_snapshot=snapshot.model_dump(mode="json"),
     )
-    db.add(analysis)
-    db.commit()
+    try:
+        admission.verify_ready(db, "market_analysis")
+        db.add(analysis)
+        db.flush()
+        reservation = reserve_ai_request(
+            db,
+            user.id,
+            "market_analysis",
+            analysis.id,
+            request.app.state.settings,
+            snapshot.model_dump(mode="json"),
+        )
+        snapshot.budget = ExecutionBudget.model_validate(reservation.policy)
+        analysis.input_snapshot = snapshot.model_dump(mode="json")
+        admission.enqueue(db, "market_analysis", analysis.id)
+        db.commit()
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception:
+        db.rollback()
+        raise HTTPException(503, "Market analysis service is not configured") from None
     db.refresh(analysis)
     return render(analysis)
 

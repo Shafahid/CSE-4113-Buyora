@@ -1,0 +1,83 @@
+{
+  "$defs": {
+    "ImageFinding": {
+      "additionalProperties": false,
+      "properties": {
+        "assessment": {
+          "enum": [
+            "good",
+            "needs_improvement",
+            "not_applicable",
+            "uncertain"
+          ],
+          "title": "Assessment",
+          "type": "string"
+        },
+        "feedback": {
+          "anyOf": [
+            {
+              "maxLength": 2000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Feedback"
+        }
+      },
+      "required": [
+        "assessment",
+        "feedback"
+      ],
+      "title": "ImageFinding",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1.0",
+      "default": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "clarity": {
+      "$ref": "#/$defs/ImageFinding"
+    },
+    "lighting": {
+      "$ref": "#/$defs/ImageFinding"
+    },
+    "composition": {
+      "$ref": "#/$defs/ImageFinding"
+    },
+    "background": {
+      "$ref": "#/$defs/ImageFinding"
+    },
+    "text_readability": {
+      "$ref": "#/$defs/ImageFinding"
+    },
+    "product_consistency": {
+      "$ref": "#/$defs/ImageFinding"
+    },
+    "suggestions": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 20,
+      "title": "Suggestions",
+      "type": "array"
+    }
+  },
+  "required": [
+    "clarity",
+    "lighting",
+    "composition",
+    "background",
+    "text_readability",
+    "product_consistency",
+    "suggestions"
+  ],
+  "title": "ImageAnalysisResult",
+  "type": "object"
+}

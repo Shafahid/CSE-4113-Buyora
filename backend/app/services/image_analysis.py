@@ -4,6 +4,8 @@ from typing import Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.schemas.phase2 import ExecutionBudget
+
 
 class ImageFinding(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -13,6 +15,7 @@ class ImageFinding(BaseModel):
 
 class ImageAnalysisResult(BaseModel):
     model_config = ConfigDict(extra="forbid")
+    schema_version: Literal["1.0"] = "1.0"
     clarity: ImageFinding
     lighting: ImageFinding
     composition: ImageFinding
@@ -23,11 +26,13 @@ class ImageAnalysisResult(BaseModel):
 
 
 class ImageAnalysisInput(BaseModel):
+    schema_version: Literal["1.0"] = "1.0"
     product_id: int
     image_id: int
     product_details: dict
     image_url: str
     language: Literal["en", "bn"]
+    budget: ExecutionBudget = Field(default_factory=ExecutionBudget)
 
 
 class ImageAnalyzer(Protocol):
@@ -92,6 +97,9 @@ def process_image_analysis(
                 },
                 "language": analysis.language,
             }
+            from app.services.ai_limits import request_budget
+
+            data["budget"] = request_budget(db, "image_analysis", analysis_id)
         data["image_url"] = storage.signed_url(key)
         output = ImageAnalysisResult.model_validate(
             analyzer.analyze(ImageAnalysisInput(**data))
