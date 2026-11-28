@@ -307,6 +307,7 @@ def create_run(db: Session, user_id: int, data: RunCreate, settings: Settings):
         request_id=str(data.request_id),
         fingerprint=fingerprint,
         status="queued",
+        expected_personas=len(profiles),
         inputs=inputs,
         model=model_identity(settings),
         rules_version=RULES_VERSION,

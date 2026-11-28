@@ -6,7 +6,6 @@ is marked failed for explicit retry: its remote completion cannot be known safel
 
 import asyncio
 import contextlib
-import json
 import logging
 from datetime import timedelta
 from typing import TypedDict
@@ -16,7 +15,12 @@ from sqlalchemy import or_, select
 
 from app.models import PersonaEvaluation, Simulation, SimulationRun
 from app.schemas.execution import RULES_VERSION, Verdict
-from app.services.llm import ModelFailure, evaluate_persona, model_identity
+from app.services.llm import (
+    ModelFailure,
+    evaluate_persona,
+    model_identity,
+    persona_token_reservation,
+)
 from app.services.simulation_runs import build_report, evaluations, now
 from app.services.trust_scoring import deterministic_evaluation, evaluation_metadata
 
@@ -71,6 +75,7 @@ def claim(factory):
                 ]
         token = str(uuid4())
         run.status = "running"
+        run.stage = "evaluating_personas"
         run.started_at = run.started_at or now()
         run.updated_at = now()
         run.lease_token = token
@@ -107,6 +112,33 @@ def heartbeat(factory, run_id, token):
         return True
 
 
+def accounted_tokens(rows):
+    """Charge known usage once per attempt, reserving unknown/in-flight usage."""
+    total = 0
+    for row in rows:
+        reservations = {}
+        reported = {}
+        for event in row.history:
+            attempt = event.get("attempt", 0)
+            reservations[attempt] = max(
+                reservations.get(attempt, 0), event.get("reserved_tokens", 0)
+            )
+            usage = [event.get("input_tokens"), event.get("output_tokens")]
+            if all(type(value) is int and value >= 0 for value in usage):
+                reported[attempt] = max(reported.get(attempt, 0), sum(usage))
+            else:
+                # A partial usage report cannot release an unknown allowance.
+                reservations[attempt] = max(
+                    reservations[attempt],
+                    sum(value for value in usage if type(value) is int and value >= 0),
+                )
+        total += sum(
+            reported.get(attempt, reserved)
+            for attempt, reserved in reservations.items()
+        )
+    return total
+
+
 def prepare_attempt(factory, run_id, token, evaluation_id, settings):
     with factory() as db:
         run = leased_run(db, run_id, token)
@@ -124,28 +156,8 @@ def prepare_attempt(factory, run_id, token, evaluation_id, settings):
             block = "model_call_budget"
         # Reserve a conservative token allowance while holding the run lock, so
         # parallel dispatches cannot all spend the same remaining budget.
-        spent = 0
-        for item in rows:
-            attempts = {}
-            for event in item.history:
-                attempt = event.get("attempt", 0)
-                amount = max(
-                    event.get("reserved_tokens", 0),
-                    (event.get("input_tokens") or 0)
-                    + (event.get("output_tokens") or 0),
-                )
-                attempts[attempt] = max(attempts.get(attempt, 0), amount)
-            spent += sum(attempts.values())
-        reserve = (
-            len(
-                json.dumps(
-                    {"input": run.inputs, "persona": row.profile}, ensure_ascii=False
-                ).encode()
-            )
-            // 3
-            + settings.llm_max_output_tokens
-            + 512
-        )
+        spent = accounted_tokens(rows)
+        reserve = persona_token_reservation(settings, run.inputs, row.profile)
         if spent + reserve > min(
             policy.get("token_budget", 200000), settings.simulation_token_budget
         ):
@@ -223,6 +235,11 @@ def finalize(factory, run_id, token):
             else ("partially_failed" if complete else "failed")
         )
         run.completed_at = now()
+        run.stage = {
+            "completed": "report_ready",
+            "partially_failed": "report_ready_partial",
+            "failed": "failed",
+        }[run.status]
         run.updated_at = now()
         run.lease_until = None
         run.lease_token = None
@@ -250,8 +267,6 @@ async def execute_run(factory, settings, run_id, token, evaluator=None):
     from langgraph.graph import END, START, StateGraph
     from langgraph.types import Send
 
-    evaluator = evaluator or evaluate_persona
-
     class State(TypedDict):
         ids: list[int]
 
@@ -260,6 +275,7 @@ async def execute_run(factory, settings, run_id, token, evaluator=None):
 
     async def persona_node(state: PersonaTask):
         evaluation_id = state["evaluation_id"]
+        retry_feedback = None
         for attempt in range(settings.llm_max_attempts):
             prepared = await asyncio.to_thread(
                 prepare_attempt, factory, run_id, token, evaluation_id, settings
@@ -284,8 +300,15 @@ async def execute_run(factory, settings, run_id, token, evaluator=None):
                     "json_mode": settings.llm_json_mode,
                 }:
                     raise ModelFailure("configuration_changed")
+                call = (
+                    evaluator(settings, inputs, profile)
+                    if evaluator is not None
+                    else evaluate_persona(
+                        settings, inputs, profile, retry_feedback=retry_feedback
+                    )
+                )
                 output, metadata = await asyncio.wait_for(
-                    evaluator(settings, inputs, profile),
+                    call,
                     timeout=settings.llm_timeout_seconds + 5,
                 )
                 output = Verdict.model_validate(
@@ -296,6 +319,7 @@ async def execute_run(factory, settings, run_id, token, evaluator=None):
                 output = None
                 error = exc.code
                 metadata = exc.metadata
+                retry_feedback = metadata.get("validation_check")
                 retry = exc.retryable and attempt + 1 < settings.llm_max_attempts
             except (TimeoutError, ValueError):
                 output = None

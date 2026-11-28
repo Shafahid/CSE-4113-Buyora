@@ -132,6 +132,7 @@ def retry_failed(
 
 def queue_retry(db, run):
     run.status = "queued"
+    run.stage = "queued"
     run.started_at = None
     run.completed_at = None
     run.updated_at = now()

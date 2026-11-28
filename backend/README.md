@@ -353,3 +353,9 @@ Reports now include `evaluationSource`, `fallbackReason`, `scoreDrivers` and
 The frontend exposes template adaptation and AI variants in the persona step,
 polls saved jobs, and labels fallback assessments on screen and in print.
 Recommendations and revisions for new server reports come from the backend.
+
+Revision `0011` adds `simulation_runs.stage` and `expected_personas`, backfilling
+existing runs from their saved inputs. New runs store the requested persona count
+before the first insert; retries preserve that count. Apply
+`uv run alembic upgrade head` before starting this backend on a database at `0010`.
+Databases already at `0011` need only the updated backend code and a restart.

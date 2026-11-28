@@ -107,6 +107,10 @@ def test_cache_fresh_runs_and_idempotent_request(execution):
     first = start(client, payload)
     assert first["status"] == "queued" and not first["cache_hit"]
     assert first["updated_at"].endswith("Z")
+    with factory() as db:
+        saved = db.get(SimulationRun, first["id"])
+        assert saved.expected_personas == len(payload["personas"])
+        assert saved.stage == "queued"
     assert start(client, payload)["id"] == first["id"]
     repeated = start(client, {**payload, "request_id": str(uuid4())})
     assert repeated["id"] == first["id"] and repeated["cache_hit"]
@@ -115,6 +119,10 @@ def test_cache_fresh_runs_and_idempotent_request(execution):
     assert report["status"] == "completed" and report["completed"] == 3
     assert report["report"]["source"] == "server"
     assert report["report"]["reactions"][0]["score"] == 67
+    with factory() as db:
+        saved = db.get(SimulationRun, first["id"])
+        assert saved.expected_personas == 3
+        assert saved.stage == "report_ready"
     assert start(client, {**payload, "request_id": str(uuid4())})["id"] == first["id"]
     assert claim(factory) is None  # Reopening does not enqueue model work.
     fresh_payload = {**payload, "fresh": True, "request_id": str(uuid4())}
@@ -181,6 +189,8 @@ def test_partial_failure_retry_preserves_completed_results(execution):
     partial = client.get(f"/simulation-runs/{run['id']}").json()
     assert partial["status"] == "partially_failed"
     assert partial["completed"] == 2 and partial["failed"] == 1
+    with factory() as db:
+        assert db.get(SimulationRun, run["id"]).stage == "report_ready_partial"
     failed = next(e for e in partial["evaluations"] if e["status"] == "failed")
     retry = {"evaluation_id": failed["id"]}
     assert (
@@ -190,6 +200,10 @@ def test_partial_failure_retry_preserves_completed_results(execution):
         == 200
     )
     client.post(f"/simulation-runs/{run['id']}/retry", json=retry, headers=ORIGIN)
+    with factory() as db:
+        saved = db.get(SimulationRun, run["id"])
+        assert saved.expected_personas == 3
+        assert saved.stage == "queued"
     retried = []
 
     async def retry_evaluator(_, inputs, profile):
