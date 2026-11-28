@@ -40,7 +40,7 @@ def upgrade():
                 WHEN 'completed' THEN 'report_ready'
                 WHEN 'partially_failed' THEN 'report_ready_partial'
                 WHEN 'failed' THEN 'failed'
-                WHEN 'running' THEN 'evaluating_personas'
+                WHEN 'running' THEN 'evaluating'
                 ELSE 'queued'
             END
         """

@@ -338,7 +338,7 @@ tables or creates them when absent. It does not move existing rows.
 
 ### Saved simulation execution
 
-Migrations `0009_simulation_execution` and `0011_simulation_job_observability`
+Migrations `0009_simulation_execution` and `0011_simulation_run_metadata`
 add durable runs, per-persona evaluations, cache pointers, persisted job stages and
 expected-persona counts in the `buyora` schema. Configure `TOKEN_BD_API_URL`,
 `TOKEN_BD_API_KEY`, `TOKEN_BD_MODEL` and optionally `LLM_PROVIDER`. LiteLLM
@@ -446,13 +446,12 @@ The frontend exposes template adaptation and AI variants in the persona step,
 polls saved jobs, and labels fallback assessments on screen and in print.
 Recommendations and revisions for new server reports come from the backend.
 
-<<<<<<< HEAD
 Revision `0011` adds `simulation_runs.stage` and `expected_personas`, backfilling
 existing runs from their saved inputs. New runs store the requested persona count
 before the first insert; retries preserve that count. Apply
 `uv run alembic upgrade head` before starting this backend on a database at `0010`.
 Databases already at `0011` need only the updated backend code and a restart.
-=======
+
 ## Backend ownership and contributors
 
 | Member | GitHub | Backend-related Phase 1 contribution |
@@ -513,4 +512,3 @@ requeue eligible work or mark it failed through an approved recovery procedure.
 Do not enable acceptance based only on a provider callable or configuration flag.
 The integration must verify a healthy worker and persist dispatch in the same
 database transaction as the request, with recovery for interrupted work.
->>>>>>> 7c316b1109eba01b8e367b41828175e3b27b24e5
