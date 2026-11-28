@@ -1,14 +1,17 @@
 import asyncio
+import json
 from datetime import timedelta
 from uuid import uuid4
 
 from test_execution import ORIGIN, process, sign_in, start, verdict
 
-from app.models import PersonaAdaptation
-from app.services.llm import ModelFailure
+from app.models import PersonaAdaptation, SimulationRun
+from app.services.llm import ModelFailure, persona_token_reservation
 from app.services.persona_engine import contextual_profiles
 from app.services.persona_jobs import claim_adaptation, execute_adaptation
 from app.services.simulation_runs import now
+from app.services.simulation_worker import claim, prepare_attempt, save_attempt
+from app.services.trust_scoring import DIMENSIONS
 
 pytest_plugins = ("test_execution",)
 
@@ -197,3 +200,100 @@ def test_no_provider_config_can_complete_with_fallback_and_grounded_server_revis
     )
     sign_in(client, "other@example.com")
     assert client.post(path, headers=ORIGIN, json={"applied": []}).status_code == 404
+
+
+def test_completed_calls_release_unused_budget_for_remaining_personas(execution):
+    client, factory, settings, payload, _ = execution
+    settings.simulation_concurrency = 1
+    settings.llm_fallback_enabled = True
+    run = start(client, payload)
+    with factory() as db:
+        saved = db.get(SimulationRun, run["id"])
+        settings.simulation_token_budget = (
+            max(
+                persona_token_reservation(settings, saved.inputs, p)
+                for p in saved.inputs["personas"]
+            )
+            + 100
+        )
+
+    seen = []
+
+    async def evaluate(_, inputs, profile):
+        seen.append(profile["id"])
+        return verdict(), {"input_tokens": 10, "output_tokens": 20}
+
+    process(factory, settings, evaluate)
+    result = client.get(f"/simulation-runs/{run['id']}").json()
+    assert len(seen) == 3
+    assert result["report"]["fallbackCount"] == 0
+    assert result["report"]["usage"]["inputTokens"] == 30
+    assert result["report"]["usage"]["outputTokens"] == 60
+
+
+def test_inflight_reservations_block_other_calls_until_usage_is_known(execution):
+    client, factory, settings, payload, _ = execution
+    settings.llm_fallback_enabled = True
+    run = start(client, payload)
+    with factory() as db:
+        saved = db.get(SimulationRun, run["id"])
+        settings.simulation_token_budget = (
+            max(
+                persona_token_reservation(settings, saved.inputs, p)
+                for p in saved.inputs["personas"]
+            )
+            + 100
+        )
+    run_id, token = claim(factory)
+    first, second = [e["id"] for e in run["evaluations"][:2]]
+    assert prepare_attempt(factory, run_id, token, first, settings)[2] is None
+    assert (
+        prepare_attempt(factory, run_id, token, second, settings)[2] == "token_budget"
+    )
+    save_attempt(
+        factory,
+        run_id,
+        token,
+        first,
+        verdict(),
+        {"input_tokens": 10, "output_tokens": 20},
+        None,
+        False,
+    )
+    assert prepare_attempt(factory, run_id, token, second, settings)[2] is None
+
+
+def test_invalid_evidence_retry_receives_feedback_and_can_finish_with_ai(
+    execution, monkeypatch
+):
+    client, factory, settings, payload, _ = execution
+    settings.llm_fallback_enabled = True
+    calls = {}
+
+    async def complete(settings, prompt, request):
+        profile_id = request["input"]["persona"]["id"]
+        attempt = calls[profile_id] = calls.get(profile_id, 0) + 1
+        value = verdict()
+        value["score_drivers"] = [
+            {
+                "dimension": dimension,
+                "reason": "A practical everyday bag.",
+                "evidence": ["Canvas bag"],
+            }
+            for dimension in DIMENSIONS
+        ]
+        assert "Canvas bag" in request["evidence_options"]
+        if attempt == 1:
+            assert "retry_guidance" not in request
+            value["evidence"] = ["Invented free delivery"]
+        else:
+            assert "unsupported evidence" in request["retry_guidance"]
+        return json.dumps(value), {"input_tokens": 10, "output_tokens": 20}
+
+    monkeypatch.setattr("app.services.llm.provider_completion", complete)
+    run = start(client, payload)
+    process(factory, settings, evaluator=None)
+    result = client.get(f"/simulation-runs/{run['id']}").json()
+    assert list(calls.values()) == [2, 2, 2]
+    assert result["report"]["fallbackCount"] == 0
+    assert all(e["output"]["evaluation_source"] == "ai" for e in result["evaluations"])

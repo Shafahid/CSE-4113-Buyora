@@ -11,7 +11,12 @@ from pydantic import SecretStr, ValidationError
 
 from app.core.persona_diversity import duplicate_perspectives
 from app.schemas.execution import RunCreate, Verdict
-from app.services.llm import ModelFailure, evaluate_persona, provider_completion
+from app.services.llm import (
+    ModelFailure,
+    evaluate_persona,
+    grounded_excerpt,
+    provider_completion,
+)
 from app.services.persona_catalog import profiles
 from app.services.persona_engine import contextual_profiles, generate_variants
 from app.services.report_insights import (
@@ -300,3 +305,69 @@ def test_evaluator_requests_complete_drivers_and_normalizes_their_order(
     with pytest.raises(ModelFailure) as caught:
         asyncio.run(evaluate_persona(settings, data, data["personas"][0]))
     assert caught.value.metadata["validation_check"] == "score_drivers"
+
+
+@pytest.mark.parametrize(
+    "quote,sources",
+    [
+        ("Free delivery", ["Free", "delivery"]),
+        ("Free delivery", ["Delivery charges apply"]),
+        ("Delivery in Dhaka", ["ঢাকায় ডেলিভারি"]),
+        ("Canvas ... bag", ["Canvas cotton bag"]),
+        ("  ", ["Canvas bag"]),
+    ],
+)
+def test_evidence_does_not_accept_inventions_translations_or_combined_fields(
+    quote, sources
+):
+    with pytest.raises(ValueError):
+        grounded_excerpt(quote, sources)
+
+
+def test_evaluator_restores_source_whitespace_and_offers_verbatim_quotes(
+    settings, monkeypatch
+):
+    data = inputs()
+    data["product"]["name"] = "Canvas\tbag"
+    data["product"]["delivery_info"] = "ঢাকায়\nডেলিভারি"
+    value = deterministic_evaluation(inputs(), data["personas"][0])
+    for key in (
+        "evaluation_source",
+        "fallback_reason",
+        "prompt_version",
+        "rules_version",
+    ):
+        value.pop(key)
+    value["evidence"] = ["Canvas bag"]
+    for driver in value["score_drivers"]:
+        driver["evidence"] = ["ঢাকায় ডেলিভারি"]
+
+    async def complete(settings, prompt, request):
+        assert "Canvas\tbag" in request["evidence_options"]
+        assert "ORIGINAL language" in prompt
+        assert all(
+            any(
+                quote in source
+                for source in [
+                    *data["product"].values(),
+                    data["post"]["body"],
+                    data["post"]["platform"],
+                    data["post"]["call_to_action"],
+                    "#canvas",
+                    *data["audience"].values(),
+                    *data["personas"][0].values(),
+                ]
+                if isinstance(source, str)
+            )
+            for quote in request["evidence_options"]
+        )
+        return json.dumps(value), {"input_tokens": 10, "output_tokens": 20}
+
+    monkeypatch.setattr("app.services.llm.provider_completion", complete)
+    result, _ = asyncio.run(evaluate_persona(settings, data, data["personas"][0]))
+    assert result["evidence"] == [
+        "Canvas bag"
+    ]  # Exact text also exists in the caption.
+    assert all(
+        driver["evidence"] == ["ঢাকায়\nডেলিভারি"] for driver in result["score_drivers"]
+    )

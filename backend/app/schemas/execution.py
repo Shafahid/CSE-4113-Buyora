@@ -7,7 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from app.core.persona_diversity import duplicate_perspectives
 
 RULES_VERSION = "buyer-perspectives-v2"
-PROMPT_VERSION = "buyer-evaluator-v2.1"
+PROMPT_VERSION = "buyer-evaluator-v2.2"
 PERSONA_VERSION = "contextual-personas-v1"
 SIMULATION_MODES = {"quick": 5, "standard": 10, "deep": 20, "extended": 30}
 Score = Annotated[int, Field(ge=0, le=100, strict=True)]

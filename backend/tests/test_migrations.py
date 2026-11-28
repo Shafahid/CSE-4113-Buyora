@@ -31,6 +31,12 @@ def test_initial_upgrade_and_downgrade_compile_as_postgresql_sql(monkeypatch) ->
     assert "ADD COLUMN stage" in upgrade_sql.getvalue()
     assert "ADD COLUMN expected_personas" in upgrade_sql.getvalue()
     assert "ix_persona_adaptations_cache" in upgrade_sql.getvalue()
+    assert "ADD COLUMN stage VARCHAR(32) DEFAULT 'queued' NOT NULL" in (
+        upgrade_sql.getvalue()
+    )
+    assert "ADD COLUMN expected_personas INTEGER" in upgrade_sql.getvalue()
+    assert "jsonb_array_length(run.inputs -> 'personas')" in upgrade_sql.getvalue()
+    assert "ALTER COLUMN expected_personas SET NOT NULL" in upgrade_sql.getvalue()
     assert "REFERENCES public.users (id)" in upgrade_sql.getvalue()
     assert "INSERT INTO alembic_version" in upgrade_sql.getvalue()
     assert "p@ss%word" not in upgrade_sql.getvalue()

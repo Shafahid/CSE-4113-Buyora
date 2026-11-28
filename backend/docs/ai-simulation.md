@@ -173,13 +173,26 @@ all completed verdicts including fallbacks.
 `LLM_FALLBACK_ENABLED=true` enables rule-based recovery. Setting false preserves
 partial failures instead. Per-run `SIMULATION_MAX_MODEL_CALLS=66` limits dispatch
 attempts; `SIMULATION_TOKEN_BUDGET=200000` conservatively reserves input bytes/3
-plus output allowance and overhead under a run lock before dispatch. Current
-and saved policy limits are both honored (the stricter value wins). These are
+plus output allowance and overhead under a run lock before dispatch. The estimate
+includes the actual provider prompt, schema and evidence choices. When the provider
+reports both input and output usage, that actual total replaces the reservation
+for the attempt. In-flight calls and calls with unknown or partial usage retain
+their conservative allowance. Retried attempts are accounted for separately.
+Current and saved policy limits are both honored (the stricter value wins). These are
 token/attempt guards, not a currency-based invoice limit. Usage records actual
 reported input/output tokens and summed provider latency; `modelCalls` counts
 dispatch attempts, which may fail before a provider bills them. Adaptation uses
 one bounded provider call and its own token reservation, not a shared account
 spending ledger. Production concurrency uses PostgreSQL row locks.
+
+Evaluator prompt `buyer-evaluator-v2.2` supplies short verbatim evidence choices
+and asks for concise explanations. Quotes keep their source language, including
+when the requested explanation language differs. Validation accepts differences
+in whitespace and restores the source excerpt; invented, translated or combined
+claims remain invalid. Automatic retries receive the failed validation check as
+targeted guidance, within the existing call, token and attempt limits. The prompt
+version changes the cache fingerprint for new requests; opening a saved report
+does not regenerate it.
 
 Migration 0010 adds the durable persona-adaptation table. The verification script
 supports safe inspection or explicit application from revision 0009; no customer
