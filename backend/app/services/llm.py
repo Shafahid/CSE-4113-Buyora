@@ -26,6 +26,11 @@ evidence; explain the main barrier. Evidence must contain exact nonempty excerpt
 from the supplied product/post/persona/audience data (at least one). Never fabricate
 quotations. Write comment, reason, positive and question in the requested output
 language (bn means natural Bangla; en means English). The question should identify
+the buyer's distinct priority, avoiding stock reactions shared by every persona.
+When writing_style=banglish, use natural Romanized Bangla with familiar English
+commerce words rather than English sentences or Bengali script. Do not translate
+verbatim evidence quotes. Remove repeated boilerplate within a reaction.
+The question should identify
 the most useful missing detail or ask for confirmation of a supplied claim.
 Return distinct objections and explain the seven scores in score_drivers, using the
 exact dimension names. Write objections and driver reasons in the requested language.
@@ -186,6 +191,7 @@ def persona_request(inputs, profile, retry_feedback=None):
         "audience": inputs["audience"],
         "persona": profile,
         "output_language": inputs["language"],
+        "writing_style": inputs.get("writing_style", "natural"),
         "explicit_information": inputs["checks"],
     }
     # The stored verdict remains backward compatible, while the provider schema
@@ -267,7 +273,19 @@ async def evaluate_persona(
             not re.search(r"[\u0980-\u09ff]", text) for text in localized
         ):
             raise ValueError("Bangla output was requested")
+        if inputs.get("writing_style") == "banglish" and any(
+            re.search(r"[\u0980-\u09ff]", text)
+            or not re.search(
+                r"\b(ami|amar|apnar|chai|koto|korben|kora|kinte|nite|hobe|ache|deoya|ponno|tothyo|jante|pabo|eta|bhalo|ektu)\b",
+                text,
+                re.I,
+            )
+            for text in localized
+        ):
+            raise ValueError("Romanized Bangla output was requested")
         value = verdict.model_dump()
+        for key in ("comment", "reason", "positive", "question"):
+            value[key] = unique_sentences(value[key])
         value["objections"] = list(dict.fromkeys(value["objections"]))
         return Verdict(**value, **evaluation_metadata()).model_dump(), {
             **metadata,
@@ -277,3 +295,14 @@ async def evaluate_persona(
         raise ModelFailure(
             "invalid_output", True, {**metadata, "validation_check": validation_check}
         ) from None
+
+
+def unique_sentences(text):
+    """Remove exact repeated sentences, preserving distinct objections and scores."""
+    seen, result = set(), []
+    for sentence in re.split(r"(?<=[.!?।])\s+", text.strip()):
+        normalized = re.sub(r"\s+", " ", sentence).casefold()
+        if normalized not in seen:
+            seen.add(normalized)
+            result.append(sentence)
+    return " ".join(result)

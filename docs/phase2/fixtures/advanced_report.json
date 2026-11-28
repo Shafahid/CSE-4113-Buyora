@@ -12,31 +12,44 @@
           "schema_version": "1.0",
           "clarity": {
             "assessment": "good",
-            "feedback": "Example: the product is visible."
+            "feedback": "Example: the product is visible.",
+            "severity": "uncertain",
+            "observation": null
           },
           "lighting": {
             "assessment": "good",
-            "feedback": "Example: the product is visible."
+            "feedback": "Example: the product is visible.",
+            "severity": "uncertain",
+            "observation": null
           },
           "composition": {
             "assessment": "good",
-            "feedback": "Example: the product is visible."
+            "feedback": "Example: the product is visible.",
+            "severity": "uncertain",
+            "observation": null
           },
           "background": {
             "assessment": "good",
-            "feedback": "Example: the product is visible."
+            "feedback": "Example: the product is visible.",
+            "severity": "uncertain",
+            "observation": null
           },
           "text_readability": {
             "assessment": "good",
-            "feedback": "Example: the product is visible."
+            "feedback": "Example: the product is visible.",
+            "severity": "uncertain",
+            "observation": null
           },
           "product_consistency": {
             "assessment": "good",
-            "feedback": "Example: the product is visible."
+            "feedback": "Example: the product is visible.",
+            "severity": "uncertain",
+            "observation": null
           },
           "suggestions": [
             "Example: use a plain background."
-          ]
+          ],
+          "metadata": null
         },
         "input_snapshot": null,
         "image_revision": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
@@ -58,7 +71,9 @@
           ],
           "limitations": [
             "Example data; no live market research was performed."
-          ]
+          ],
+          "data_status": "sufficient_data",
+          "metadata": null
         },
         "input_snapshot": {
           "schema_version": "1.0",
@@ -95,7 +110,9 @@
             "max_output_tokens": 4096,
             "max_attempts": 1,
             "timeout_seconds": 90
-          }
+          },
+          "comparison_date": null,
+          "max_evidence_age_days": 90
         },
         "image_revision": null
       }

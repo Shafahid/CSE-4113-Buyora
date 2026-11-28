@@ -29,6 +29,25 @@ FOCUS = {
     "trend": ("details", "proof"),
     "genz": ("proof", "ordering"),
     "traditional": ("contact", "ordering"),
+    "delivery_cost": ("delivery_cost", "price"),
+    "hurry": ("delivery", "contact"),
+    "sizing": ("details", "returns"),
+    "materials": ("details", "proof"),
+    "specs": ("details", "warranty"),
+    "demonstration": ("proof", "details"),
+    "durability": ("warranty", "details"),
+    "returns": ("returns", "delivery_cost"),
+    "privacy": ("contact", "delivery"),
+    "accessibility": ("ordering", "details"),
+    "care": ("details", "price"),
+    "low_waste": ("details", "proof"),
+    "bulk": ("price", "ordering"),
+    "compatibility": ("details", "returns"),
+    "after_sales": ("contact", "warranty"),
+    "availability": ("details", "contact"),
+    "pickup": ("contact", "delivery_cost"),
+    "family": ("details", "price"),
+    "safety": ("details", "warranty"),
 }
 LABELS = {
     "price": ("price", "দাম"),
@@ -147,6 +166,7 @@ def sensitivity(profile):
 def deterministic_evaluation(inputs, profile, reason="provider_unavailable"):
     signals = trust_signals(inputs)
     bn = inputs.get("language") == "bn"
+    banglish = inputs.get("writing_style") == "banglish"
     priorities = FOCUS.get(profile["id"], ("details", "price", "delivery"))
     missing = [
         key
@@ -165,6 +185,8 @@ def deterministic_evaluation(inputs, profile, reason="provider_unavailable"):
         if bn
         else f"Can you confirm the {label}?"
     )
+    if banglish:
+        question = f"{label} ta ektu confirm korben?"
     present = sum(s["supplied"] for s in signals.values())
     visible = sum(s["visible"] for s in signals.values())
     clarity = min(90, 35 + 6 * visible + 3 * present)
@@ -241,19 +263,30 @@ def deterministic_evaluation(inputs, profile, reason="provider_unavailable"):
                 )[:3],
             }
         )
+        if banglish:
+            drivers[-1]["reason"] = (
+                "Confirm kora dorkar: " + ", ".join(gaps)
+                if gaps
+                else "Tothyo deoya ache; seller-er daabi alada kore jachai kora hoyni."
+            )
     return Verdict(
         scores=scores,
         comment=question,
         question=question,
         reason=(
-            "সংরক্ষিত তথ্য ও এই ক্রেতার চাহিদার ভিত্তিতে নিয়মভিত্তিক মূল্যায়ন। "
+            "Eta deoya tothyo o buyer-er priority diye rule-based assessment; "
+            "AI motamot ba bikrir forecast noy."
+            if banglish
+            else "সংরক্ষিত তথ্য ও এই ক্রেতার চাহিদার ভিত্তিতে নিয়মভিত্তিক মূল্যায়ন। "
             "এটি AI-এর মতামত বা বিক্রির পূর্বাভাস নয়।"
             if bn
             else "Rule-based assessment of the saved information and this buyer's "
             "priorities. This is not an AI verdict or a sales forecast."
         ),
         positive=(
-            "পণ্যের সম্পর্কে কিছু তথ্য দেওয়া আছে; প্রকাশের আগে তথ্যগুলো যাচাই করুন।"
+            "Ponno niye kichu tothyo deoya ache; publish korar age jachai korun."
+            if banglish
+            else "পণ্যের সম্পর্কে কিছু তথ্য দেওয়া আছে; প্রকাশের আগে তথ্যগুলো যাচাই করুন।"
             if bn
             else "The saved input supplies product information "
             "to check before publishing."

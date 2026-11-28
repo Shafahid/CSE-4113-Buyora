@@ -3577,6 +3577,108 @@
   },
   "components": {
     "schemas": {
+      "AIMetadata": {
+        "properties": {
+          "source": {
+            "type": "string",
+            "enum": [
+              "ai",
+              "fallback",
+              "unavailable"
+            ],
+            "title": "Source"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "prompt_version": {
+            "type": "string",
+            "title": "Prompt Version"
+          },
+          "failure_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Failure Code"
+          },
+          "input_tokens": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Input Tokens"
+          },
+          "output_tokens": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Output Tokens"
+          },
+          "latency_ms": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Latency Ms",
+            "default": 0
+          },
+          "input_token_bound": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Input Token Bound"
+          },
+          "evaluated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Evaluated At"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 20,
+            "title": "Warnings"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "source",
+          "prompt_version",
+          "evaluated_at"
+        ],
+        "title": "AIMetadata"
+      },
       "AgeRange": {
         "properties": {
           "min": {
@@ -3763,6 +3865,16 @@
               }
             ],
             "title": "Is Current Image"
+          },
+          "processing_metadata": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AIMetadata"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
@@ -4890,6 +5002,16 @@
             "type": "array",
             "maxItems": 20,
             "title": "Suggestions"
+          },
+          "metadata": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AIMetadata"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false,
@@ -4951,6 +5073,29 @@
               }
             ],
             "title": "Feedback"
+          },
+          "severity": {
+            "type": "string",
+            "enum": [
+              "none",
+              "minor",
+              "major",
+              "uncertain"
+            ],
+            "title": "Severity",
+            "default": "uncertain"
+          },
+          "observation": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Observation"
           }
         },
         "additionalProperties": false,
@@ -5006,7 +5151,6 @@
             },
             "type": "array",
             "maxItems": 20,
-            "minItems": 1,
             "title": "Competitors"
           },
           "language": {
@@ -5019,12 +5163,30 @@
           },
           "budget": {
             "$ref": "#/components/schemas/ExecutionBudget"
+          },
+          "comparison_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Comparison Date"
+          },
+          "max_evidence_age_days": {
+            "type": "integer",
+            "maximum": 365.0,
+            "minimum": 1.0,
+            "title": "Max Evidence Age Days",
+            "default": 90
           }
         },
         "type": "object",
         "required": [
           "product",
-          "competitors",
           "language"
         ],
         "title": "MarketInput"
@@ -5194,6 +5356,16 @@
             "type": "boolean",
             "title": "Interpretations Require Review",
             "default": true
+          },
+          "processing_metadata": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AIMetadata"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
@@ -5264,6 +5436,25 @@
             "maxItems": 20,
             "minItems": 1,
             "title": "Limitations"
+          },
+          "data_status": {
+            "type": "string",
+            "enum": [
+              "sufficient_data",
+              "insufficient_data"
+            ],
+            "title": "Data Status",
+            "default": "sufficient_data"
+          },
+          "metadata": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AIMetadata"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false,
@@ -5298,6 +5489,15 @@
             ],
             "title": "Language",
             "default": "en"
+          },
+          "writing_style": {
+            "type": "string",
+            "enum": [
+              "natural",
+              "banglish"
+            ],
+            "title": "Writing Style",
+            "default": "natural"
           },
           "audience": {
             "additionalProperties": {
@@ -5402,7 +5602,7 @@
           "version": {
             "type": "string",
             "title": "Version",
-            "default": "contextual-personas-v1"
+            "default": "contextual-personas-v2"
           }
         },
         "type": "object",
@@ -6727,7 +6927,8 @@
             "type": "string",
             "enum": [
               "seller",
-              "ai"
+              "ai",
+              "fallback"
             ],
             "title": "Origin"
           },
@@ -6770,6 +6971,15 @@
             ],
             "title": "Language",
             "default": "en"
+          },
+          "writing_style": {
+            "type": "string",
+            "enum": [
+              "natural",
+              "banglish"
+            ],
+            "title": "Writing Style",
+            "default": "natural"
           },
           "audience": {
             "additionalProperties": {
@@ -6858,6 +7068,15 @@
             ],
             "title": "Language",
             "default": "en"
+          },
+          "writing_style": {
+            "type": "string",
+            "enum": [
+              "natural",
+              "banglish"
+            ],
+            "title": "Writing Style",
+            "default": "natural"
           },
           "audience": {
             "additionalProperties": {
@@ -7662,6 +7881,16 @@
                 "type": "null"
               }
             ]
+          },
+          "processing_metadata": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AIMetadata"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
@@ -7783,6 +8012,11 @@
               }
             ],
             "title": "Rules Version"
+          },
+          "repeated_language": {
+            "type": "boolean",
+            "title": "Repeated Language",
+            "default": false
           }
         },
         "additionalProperties": false,

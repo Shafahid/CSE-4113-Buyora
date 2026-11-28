@@ -7,8 +7,8 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from app.core.persona_diversity import duplicate_perspectives
 
 RULES_VERSION = "buyer-perspectives-v2"
-PROMPT_VERSION = "buyer-evaluator-v2.2"
-PERSONA_VERSION = "contextual-personas-v1"
+PROMPT_VERSION = "buyer-evaluator-v2.3"
+PERSONA_VERSION = "contextual-personas-v2"
 SIMULATION_MODES = {"quick": 5, "standard": 10, "deep": 20, "extended": 30}
 Score = Annotated[int, Field(ge=0, le=100, strict=True)]
 
@@ -35,6 +35,7 @@ class RunCreate(BaseModel):
     request_id: UUID
     post_version_id: int = Field(gt=0, strict=True)
     language: Literal["en", "bn"] = "en"
+    writing_style: Literal["natural", "banglish"] = "natural"
     audience: dict[str, str] = Field(default_factory=dict)
     personas: list[PersonaProfile] = Field(min_length=2, max_length=30)
     mode: Literal["quick", "standard", "deep", "extended", "custom"] | None = None
@@ -63,6 +64,8 @@ class RunCreate(BaseModel):
 
     @model_validator(mode="after")
     def unique_personas(self):
+        if self.writing_style == "banglish" and self.language != "en":
+            raise ValueError("Use language=en with writing_style=banglish")
         if len({p.id for p in self.personas}) != len(self.personas):
             raise ValueError("Persona identities must be unique")
         if duplicate_perspectives([p.model_dump() for p in self.personas]):
@@ -103,6 +106,7 @@ class Verdict(BuyerVerdict):
     fallback_reason: str | None = None
     prompt_version: str | None = None
     rules_version: str | None = None
+    repeated_language: bool = False
 
 
 class PersonaAdaptRequest(RunCreate):

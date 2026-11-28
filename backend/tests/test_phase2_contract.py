@@ -5,6 +5,7 @@ from pydantic import ValidationError
 
 from app.main import create_app
 from scripts.export_phase2_contract import DESTINATION, MODELS
+from scripts.export_stage2_examples import Stage2Samples, samples
 
 
 @pytest.mark.parametrize("name,model", MODELS.items())
@@ -44,3 +45,22 @@ def test_committed_openapi_matches_routes_and_documents_limits(settings):
         "429"
         in saved["paths"]["/products/{product_id}/market-analyses"]["post"]["responses"]
     )
+
+
+def test_stage2_samples_are_valid_grounded_and_reproducible():
+    fixture = json.loads(
+        (DESTINATION / "fixtures/stage2_outputs.json").read_text(encoding="utf-8")
+    )
+    assert fixture["example_only"] is True
+    result = Stage2Samples.model_validate(fixture["payload"])
+    assert result.model_dump(mode="json") == samples().model_dump(mode="json")
+    assert len({p.id for p in result.personas}) == 30
+    assert set(result.reactions) == {"en", "bn", "banglish"}
+    assert all(len(r.scores) == 7 for r in result.reactions.values())
+    assert result.market_insufficient.data_status == "insufficient_data"
+    assert len({r.content.body for r in result.platforms.values()}) == 4
+    assert all(r.metadata.source == "fallback" for r in result.platforms.values())
+    schema = json.loads(
+        (DESTINATION / "schemas/stage2_outputs.schema.json").read_text(encoding="utf-8")
+    )
+    assert schema == Stage2Samples.model_json_schema()

@@ -70,7 +70,7 @@ def test_unavailable_and_snapshot_history(client):
         == "https://example.com/original"
     )
     assert [x["comparison"] for x in item["price_observations"]] == [
-        "lower",
+        "not_comparable",
         "not_comparable",
     ]
     client.patch(f"/products/{product}", json={"name": "Changed"}, headers=ORIGIN)

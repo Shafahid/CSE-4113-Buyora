@@ -36,6 +36,8 @@
       "max_output_tokens": 4096,
       "max_attempts": 1,
       "timeout_seconds": 90
-    }
+    },
+    "comparison_date": null,
+    "max_evidence_age_days": 90
   }
 }

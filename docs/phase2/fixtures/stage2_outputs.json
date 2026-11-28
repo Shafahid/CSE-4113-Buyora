@@ -1,0 +1,930 @@
+{
+  "example_only": true,
+  "schema": "Stage2Samples",
+  "payload": {
+    "personas": [
+      {
+        "id": "budget",
+        "name": "Nadia",
+        "role": "Budget student",
+        "age": "18–24",
+        "location": "Dhaka",
+        "need": "Practical everyday essentials at a student-friendly price",
+        "budget": "High sensitivity",
+        "color": "peach",
+        "initials": "N",
+        "context": "Product: Canvas bag. Platform: Facebook. Category: Accessories. Stated price: BDT 120.00. . Audience location: Bangladesh. Personal priority: Practical everyday essentials at a student-friendly price. Budget preference: High sensitivity",
+        "description_language": "en"
+      },
+      {
+        "id": "cod",
+        "name": "Rafi",
+        "role": "COD-first buyer",
+        "age": "25–34",
+        "location": "Chattogram",
+        "need": "Payment on delivery and clear delivery coverage",
+        "budget": "Medium sensitivity",
+        "color": "blue",
+        "initials": "R",
+        "context": "Product: Canvas bag. Platform: Facebook. Category: Accessories. Stated price: BDT 120.00. . Audience location: Bangladesh. Personal priority: Payment on delivery and clear delivery coverage. Budget preference: Medium sensitivity",
+        "description_language": "en"
+      },
+      {
+        "id": "skeptic",
+        "name": "Farhana",
+        "role": "Careful skeptic",
+        "age": "25–34",
+        "location": "Dhaka",
+        "need": "Authentic photos, customer reviews, and a clear return policy",
+        "budget": "Medium sensitivity",
+        "color": "lavender",
+        "initials": "F",
+        "context": "Product: Canvas bag. Platform: Facebook. Category: Accessories. Stated price: BDT 120.00. . Audience location: Bangladesh. Personal priority: Authentic photos, customer reviews, and a clear return policy. Budget preference: Medium sensitivity",
+        "description_language": "en"
+      },
+      {
+        "id": "office",
+        "name": "Arif",
+        "role": "Busy professional",
+        "age": "25–34",
+        "location": "Dhaka",
+        "need": "Reliable quality and convenient delivery",
+        "budget": "Low sensitivity",
+        "color": "mint",
+        "initials": "A",
+        "context": "Product: Canvas bag. Platform: Facebook. Category: Accessories. Stated price: BDT 120.00. . Audience location: Bangladesh. Personal priority: Reliable quality and convenient delivery. Budget preference: Low sensitivity",
+        "description_language": "en"
+      },
+      {
+        "id": "gift",
+        "name": "Tisha",
+        "role": "Thoughtful gift buyer",
+        "age": "25–34",
+        "location": "Sylhet",
+        "need": "Thoughtful packaging and delivery before a special occasion",
+        "budget": "Medium sensitivity",
+        "color": "rose",
+        "initials": "T",
+        "context": "Product: Canvas bag. Platform: Facebook. Category: Accessories. Stated price: BDT 120.00. . Audience location: Bangladesh. Personal priority: Thoughtful packaging and delivery before a special occasion. Budget preference: Medium sensitivity",
+        "description_language": "en"
+      },
+      {
+        "id": "impulse",
+        "name": "Sami",
+        "role": "Impulse shopper",
+        "age": "18–24",
+        "location": "Dhaka",
+        "need": "A distinctive product, a clear offer, and quick ordering",
+        "budget": "Low sensitivity",
+        "color": "sand",
+        "initials": "S",
+        "context": "Product: Canvas bag. Platform: Facebook. Category: Accessories. Stated price: BDT 120.00. . Audience location: Bangladesh. Personal priority: A distinctive product, a clear offer, and quick ordering. Budget preference: Low sensitivity",
+        "description_language": "en"
+      },
+      {
+        "id": "bargain",
+        "name": "Mehedi",
+        "role": "Value seeker",
+        "age": "25–34",
+        "location": "Rajshahi",
+        "need": "Transparent pricing and a convincing reason to choose this product",
+        "budget": "High sensitivity",
+        "color": "blue",
+        "initials": "M",
+        "context": "Product: Canvas bag. Platform: Facebook. Category: Accessories. Stated price: BDT 120.00. . Audience location: Bangladesh. Personal priority: Transparent pricing and a convincing reason to choose this product. Budget preference: High sensitivity",
+        "description_language": "en"
+      },
+      {
+        "id": "repeat",
+        "name": "Ayesha",
+        "role": "Returning customer",
+        "age": "35–44",
+        "location": "Dhaka",
+        "need": "Consistent quality and a familiar shopping experience",
+        "budget": "Medium sensitivity",
+        "color": "peach",
+        "initials": "A",
+        "context": "Product: Canvas bag. Platform: Facebook. Category: Accessories. Stated price: BDT 120.00. . Audience location: Bangladesh. Personal priority: Consistent quality and a familiar shopping experience. Budget preference: Medium sensitivity",
+        "description_language": "en"
+      },
+      {
+        "id": "trend",
+        "name": "Raisa",
+        "role": "Trend follower",
+        "age": "18–24",
+        "location": "Chattogram",
+        "need": "Current styles, relevant product variants, and evidence the item matches a trend; checks social appeal before committing",
+        "budget": "Medium sensitivity",
+        "color": "rose",
+        "initials": "R",
+        "context": "Product: Canvas bag. Platform: Facebook. Category: Accessories. Stated price: BDT 120.00. . Audience location: Bangladesh. Personal priority: Current styles, relevant product variants, and evidence the item matches a trend; checks social appeal before committing. Budget preference: Medium sensitivity",
+        "description_language": "en"
+      },
+      {
+        "id": "genz",
+        "name": "Maya",
+        "role": "Digital-native Gen Z",
+        "age": "18–24",
+        "location": "Dhaka",
+        "need": "Mobile-friendly product details, useful creator demonstrations, and a smooth digital ordering experience; researches usability before buying",
+        "budget": "Medium sensitivity",
+        "color": "lavender",
+        "initials": "M",
+        "context": "Product: Canvas bag. Platform: Facebook. Category: Accessories. Stated price: BDT 120.00. . Audience location: Bangladesh. Personal priority: Mobile-friendly product details, useful creator demonstrations, and a smooth digital ordering experience; researches usability before buying. Budget preference: Medium sensitivity",
+        "description_language": "en"
+      },
+      {
+        "id": "traditional",
+        "name": "Karim",
+        "role": "Old-school buyer",
+        "age": "45–60",
+        "location": "Khulna",
+        "need": "Plain-language details, a phone number or physical shop address, and personal help placing an order; prefers familiar buying steps",
+        "budget": "Medium sensitivity",
+        "color": "mint",
+        "initials": "K",
+        "context": "Product: Canvas bag. Platform: Facebook. Category: Accessories. Stated price: BDT 120.00. . Audience location: Bangladesh. Personal priority: Plain-language details, a phone number or physical shop address, and personal help placing an order; prefers familiar buying steps. Budget preference: Medium sensitivity",
+        "description_language": "en"
+      },
+      {
+        "id": "delivery_cost",
+        "name": "Shuvo",
+        "role": "Total-cost planner",
+        "age": "Adult",
+        "location": "Bangladesh",
+        "need": "Know the delivered total including courier fees before choosing a price",
+        "budget": "High sensitivity",
+        "color": "blue",
+        "initials": "S",
+        "context": "Product: Canvas bag. Platform: Facebook. Category: Accessories. Stated price: BDT 120.00. . Audience location: Bangladesh. Personal priority: Know the delivered total including courier fees before choosing a price. Budget preference: High sensitivity",
+        "description_language": "en"
+      },
+      {
+        "id": "hurry",
+        "name": "Nabila",
+        "role": "Deadline buyer",
+        "age": "Adult",
+        "location": "Bangladesh",
+        "need": "Confirm a realistic dispatch date and arrival window for an urgent need",
+        "budget": "Medium sensitivity",
+        "color": "blue",
+        "initials": "N",
+        "context": "Product: Canvas bag. Platform: Facebook. Category: Accessories. Stated price: BDT 120.00. . Audience location: Bangladesh. Personal priority: Confirm a realistic dispatch date and arrival window for an urgent need. Budget preference: Medium sensitivity",
+        "description_language": "en"
+      },
+      {
+        "id": "sizing",
+        "name": "Rony",
+        "role": "Fit and measurement checker",
+        "age": "Adult",
+        "location": "Bangladesh",
+        "need": "See exact dimensions, size options and how measurements match the intended use",
+        "budget": "Medium sensitivity",
+        "color": "blue",
+        "initials": "R",
+        "context": "Product: Canvas bag. Platform: Facebook. Category: Accessories. Stated price: BDT 120.00. . Audience location: Bangladesh. Personal priority: See exact dimensions, size options and how measurements match the intended use. Budget preference: Medium sensitivity",
+        "description_language": "en"
+      },
+      {
+        "id": "materials",
+        "name": "Faria",
+        "role": "Material-detail reader",
+        "age": "Adult",
+        "location": "Bangladesh",
+        "need": "Read the seller's stated composition and surface details without assuming authenticity",
+        "budget": "Low sensitivity",
+        "color": "blue",
+        "initials": "F",
+        "context": "Product: Canvas bag. Platform: Facebook. Category: Accessories. Stated price: BDT 120.00. . Audience location: Bangladesh. Personal priority: Read the seller's stated composition and surface details without assuming authenticity. Budget preference: Low sensitivity",
+        "description_language": "en"
+      },
+      {
+        "id": "specs",
+        "name": "Adnan",
+        "role": "Specification researcher",
+        "age": "Adult",
+        "location": "Bangladesh",
+        "need": "Compare documented technical capacity, included accessories and operating requirements",
+        "budget": "Medium sensitivity",
+        "color": "blue",
+        "initials": "A",
+        "context": "Product: Canvas bag. Platform: Facebook. Category: Accessories. Stated price: BDT 120.00. . Audience location: Bangladesh. Personal priority: Compare documented technical capacity, included accessories and operating requirements. Budget preference: Medium sensitivity",
+        "description_language": "en"
+      },
+      {
+        "id": "demonstration",
+        "name": "Mitu",
+        "role": "Demonstration-first shopper",
+        "age": "Adult",
+        "location": "Bangladesh",
+        "need": "Watch an unedited demonstration of the exact item doing its stated task",
+        "budget": "Medium sensitivity",
+        "color": "blue",
+        "initials": "M",
+        "context": "Product: Canvas bag. Platform: Facebook. Category: Accessories. Stated price: BDT 120.00. . Audience location: Bangladesh. Personal priority: Watch an unedited demonstration of the exact item doing its stated task. Budget preference: Medium sensitivity",
+        "description_language": "en"
+      },
+      {
+        "id": "durability",
+        "name": "Imran",
+        "role": "Long-use planner",
+        "age": "Adult",
+        "location": "Bangladesh",
+        "need": "Understand care needs, repair options and documented durability limitations for repeated use",
+        "budget": "Low sensitivity",
+        "color": "blue",
+        "initials": "I",
+        "context": "Product: Canvas bag. Platform: Facebook. Category: Accessories. Stated price: BDT 120.00. . Audience location: Bangladesh. Personal priority: Understand care needs, repair options and documented durability limitations for repeated use. Budget preference: Low sensitivity",
+        "description_language": "en"
+      },
+      {
+        "id": "returns",
+        "name": "Sadia",
+        "role": "Exchange-process checker",
+        "age": "Adult",
+        "location": "Bangladesh",
+        "need": "Know the exchange deadline, eligibility and who pays return shipping before ordering",
+        "budget": "Medium sensitivity",
+        "color": "blue",
+        "initials": "S",
+        "context": "Product: Canvas bag. Platform: Facebook. Category: Accessories. Stated price: BDT 120.00. . Audience location: Bangladesh. Personal priority: Know the exchange deadline, eligibility and who pays return shipping before ordering. Budget preference: Medium sensitivity",
+        "description_language": "en"
+      },
+      {
+        "id": "privacy",
+        "name": "Rashed",
+        "role": "Privacy-conscious buyer",
+        "age": "Adult",
+        "location": "Bangladesh",
+        "need": "Understand which contact details are needed and whether discreet packaging is offered",
+        "budget": "Medium sensitivity",
+        "color": "blue",
+        "initials": "R",
+        "context": "Product: Canvas bag. Platform: Facebook. Category: Accessories. Stated price: BDT 120.00. . Audience location: Bangladesh. Personal priority: Understand which contact details are needed and whether discreet packaging is offered. Budget preference: Medium sensitivity",
+        "description_language": "en"
+      },
+      {
+        "id": "accessibility",
+        "name": "Lamia",
+        "role": "Plain-information reader",
+        "age": "Adult",
+        "location": "Bangladesh",
+        "need": "Find readable text, descriptive images and simple steps without relying on a video alone",
+        "budget": "Medium sensitivity",
+        "color": "blue",
+        "initials": "L",
+        "context": "Product: Canvas bag. Platform: Facebook. Category: Accessories. Stated price: BDT 120.00. . Audience location: Bangladesh. Personal priority: Find readable text, descriptive images and simple steps without relying on a video alone. Budget preference: Medium sensitivity",
+        "description_language": "en"
+      },
+      {
+        "id": "care",
+        "name": "Ovi",
+        "role": "Maintenance-cost checker",
+        "age": "Adult",
+        "location": "Bangladesh",
+        "need": "Learn cleaning instructions, recurring consumable needs and storage conditions",
+        "budget": "High sensitivity",
+        "color": "blue",
+        "initials": "O",
+        "context": "Product: Canvas bag. Platform: Facebook. Category: Accessories. Stated price: BDT 120.00. . Audience location: Bangladesh. Personal priority: Learn cleaning instructions, recurring consumable needs and storage conditions. Budget preference: High sensitivity",
+        "description_language": "en"
+      },
+      {
+        "id": "low_waste",
+        "name": "Rima",
+        "role": "Low-waste shopper",
+        "age": "Adult",
+        "location": "Bangladesh",
+        "need": "Ask about reusable packaging and service life without assuming environmental certification",
+        "budget": "Medium sensitivity",
+        "color": "blue",
+        "initials": "R",
+        "context": "Product: Canvas bag. Platform: Facebook. Category: Accessories. Stated price: BDT 120.00. . Audience location: Bangladesh. Personal priority: Ask about reusable packaging and service life without assuming environmental certification. Budget preference: Medium sensitivity",
+        "description_language": "en"
+      },
+      {
+        "id": "bulk",
+        "name": "Tanvir",
+        "role": "Quantity-order planner",
+        "age": "Adult",
+        "location": "Bangladesh",
+        "need": "Check minimum quantity, per-unit pricing and whether all pieces have the same specifications",
+        "budget": "High sensitivity",
+        "color": "blue",
+        "initials": "T",
+        "context": "Product: Canvas bag. Platform: Facebook. Category: Accessories. Stated price: BDT 120.00. . Audience location: Bangladesh. Personal priority: Check minimum quantity, per-unit pricing and whether all pieces have the same specifications. Budget preference: High sensitivity",
+        "description_language": "en"
+      },
+      {
+        "id": "compatibility",
+        "name": "Safa",
+        "role": "Compatibility checker",
+        "age": "Adult",
+        "location": "Bangladesh",
+        "need": "Verify exact device, connector or existing-item compatibility before accepting a recommendation",
+        "budget": "Medium sensitivity",
+        "color": "blue",
+        "initials": "S",
+        "context": "Product: Canvas bag. Platform: Facebook. Category: Accessories. Stated price: BDT 120.00. . Audience location: Bangladesh. Personal priority: Verify exact device, connector or existing-item compatibility before accepting a recommendation. Budget preference: Medium sensitivity",
+        "description_language": "en"
+      },
+      {
+        "id": "after_sales",
+        "name": "Mahin",
+        "role": "Support-first buyer",
+        "age": "Adult",
+        "location": "Bangladesh",
+        "need": "Know how to contact support, its response hours and the documented warranty claim process",
+        "budget": "Low sensitivity",
+        "color": "blue",
+        "initials": "M",
+        "context": "Product: Canvas bag. Platform: Facebook. Category: Accessories. Stated price: BDT 120.00. . Audience location: Bangladesh. Personal priority: Know how to contact support, its response hours and the documented warranty claim process. Budget preference: Low sensitivity",
+        "description_language": "en"
+      },
+      {
+        "id": "availability",
+        "name": "Nusaiba",
+        "role": "Stock-clarity checker",
+        "age": "Adult",
+        "location": "Bangladesh",
+        "need": "Confirm the specific color or variant is available rather than substituting another item",
+        "budget": "Medium sensitivity",
+        "color": "blue",
+        "initials": "N",
+        "context": "Product: Canvas bag. Platform: Facebook. Category: Accessories. Stated price: BDT 120.00. . Audience location: Bangladesh. Personal priority: Confirm the specific color or variant is available rather than substituting another item. Budget preference: Medium sensitivity",
+        "description_language": "en"
+      },
+      {
+        "id": "pickup",
+        "name": "Fahim",
+        "role": "Pickup planner",
+        "age": "Adult",
+        "location": "Bangladesh",
+        "need": "Ask whether collection is available, where it happens and what inspection is permitted",
+        "budget": "High sensitivity",
+        "color": "blue",
+        "initials": "F",
+        "context": "Product: Canvas bag. Platform: Facebook. Category: Accessories. Stated price: BDT 120.00. . Audience location: Bangladesh. Personal priority: Ask whether collection is available, where it happens and what inspection is permitted. Budget preference: High sensitivity",
+        "description_language": "en"
+      },
+      {
+        "id": "family",
+        "name": "Sumi",
+        "role": "Shared-use organizer",
+        "age": "Adult",
+        "location": "Bangladesh",
+        "need": "Check whether one item meets several stated household uses without guessing family traits",
+        "budget": "Medium sensitivity",
+        "color": "blue",
+        "initials": "S",
+        "context": "Product: Canvas bag. Platform: Facebook. Category: Accessories. Stated price: BDT 120.00. . Audience location: Bangladesh. Personal priority: Check whether one item meets several stated household uses without guessing family traits. Budget preference: Medium sensitivity",
+        "description_language": "en"
+      },
+      {
+        "id": "safety",
+        "name": "Nafis",
+        "role": "Instruction and warning reader",
+        "age": "Adult",
+        "location": "Bangladesh",
+        "need": "Look for operating instructions, age-use warnings and stated limitations without accepting safety guarantees",
+        "budget": "Medium sensitivity",
+        "color": "blue",
+        "initials": "N",
+        "context": "Product: Canvas bag. Platform: Facebook. Category: Accessories. Stated price: BDT 120.00. . Audience location: Bangladesh. Personal priority: Look for operating instructions, age-use warnings and stated limitations without accepting safety guarantees. Budget preference: Medium sensitivity",
+        "description_language": "en"
+      }
+    ],
+    "reactions": {
+      "en": {
+        "scores": [
+          60,
+          60,
+          70,
+          50,
+          35,
+          53,
+          38
+        ],
+        "comment": "Can you confirm the delivery charges?",
+        "reason": "Rule-based assessment of the saved information and this buyer's priorities. This is not an AI verdict or a sales forecast.",
+        "positive": "The saved input supplies product information to check before publishing.",
+        "question": "Can you confirm the delivery charges?",
+        "evidence": [
+          "Canvas bag",
+          "A reusable canvas bag.",
+          "BDT 120."
+        ],
+        "objections": [
+          "Can you confirm the delivery charges?"
+        ],
+        "score_drivers": [
+          {
+            "dimension": "Interest",
+            "reason": "Needs confirmation: product demonstration or review information",
+            "evidence": [
+              "Canvas bag",
+              "A reusable canvas bag."
+            ]
+          },
+          {
+            "dimension": "Relevance",
+            "reason": "Relevant information is supplied; seller claims are not independently verified.",
+            "evidence": [
+              "Canvas bag",
+              "A reusable canvas bag."
+            ]
+          },
+          {
+            "dimension": "Value",
+            "reason": "Relevant information is supplied; seller claims are not independently verified.",
+            "evidence": [
+              "Canvas bag",
+              "A reusable canvas bag.",
+              "BDT 120."
+            ]
+          },
+          {
+            "dimension": "Price fit",
+            "reason": "Needs confirmation: delivery charges",
+            "evidence": [
+              "BDT 120."
+            ]
+          },
+          {
+            "dimension": "Trust",
+            "reason": "Needs confirmation: return or exchange policy, payment methods, delivery coverage and timing",
+            "evidence": []
+          },
+          {
+            "dimension": "Clarity",
+            "reason": "Needs confirmation: ordering instructions, seller contact options",
+            "evidence": [
+              "BDT 120."
+            ]
+          },
+          {
+            "dimension": "Purchase intent",
+            "reason": "Needs confirmation: delivery charges",
+            "evidence": [
+              "BDT 120."
+            ]
+          }
+        ],
+        "evaluation_source": "fallback",
+        "fallback_reason": "example_only",
+        "prompt_version": null,
+        "rules_version": "buyer-perspectives-v2",
+        "repeated_language": false
+      },
+      "bn": {
+        "scores": [
+          60,
+          60,
+          70,
+          50,
+          35,
+          53,
+          38
+        ],
+        "comment": "ডেলিভারি চার্জ সম্পর্কে বিস্তারিত নিশ্চিত করবেন?",
+        "reason": "সংরক্ষিত তথ্য ও এই ক্রেতার চাহিদার ভিত্তিতে নিয়মভিত্তিক মূল্যায়ন। এটি AI-এর মতামত বা বিক্রির পূর্বাভাস নয়।",
+        "positive": "পণ্যের সম্পর্কে কিছু তথ্য দেওয়া আছে; প্রকাশের আগে তথ্যগুলো যাচাই করুন।",
+        "question": "ডেলিভারি চার্জ সম্পর্কে বিস্তারিত নিশ্চিত করবেন?",
+        "evidence": [
+          "Canvas bag",
+          "A reusable canvas bag.",
+          "BDT 120."
+        ],
+        "objections": [
+          "ডেলিভারি চার্জ সম্পর্কে বিস্তারিত নিশ্চিত করবেন?"
+        ],
+        "score_drivers": [
+          {
+            "dimension": "Interest",
+            "reason": "যাচাই প্রয়োজন: পণ্যের ডেমো বা রিভিউয়ের তথ্য",
+            "evidence": [
+              "Canvas bag",
+              "A reusable canvas bag."
+            ]
+          },
+          {
+            "dimension": "Relevance",
+            "reason": "সংশ্লিষ্ট তথ্য দেওয়া আছে; দাবিগুলো স্বাধীনভাবে যাচাই করা হয়নি।",
+            "evidence": [
+              "Canvas bag",
+              "A reusable canvas bag."
+            ]
+          },
+          {
+            "dimension": "Value",
+            "reason": "সংশ্লিষ্ট তথ্য দেওয়া আছে; দাবিগুলো স্বাধীনভাবে যাচাই করা হয়নি।",
+            "evidence": [
+              "Canvas bag",
+              "A reusable canvas bag.",
+              "BDT 120."
+            ]
+          },
+          {
+            "dimension": "Price fit",
+            "reason": "যাচাই প্রয়োজন: ডেলিভারি চার্জ",
+            "evidence": [
+              "BDT 120."
+            ]
+          },
+          {
+            "dimension": "Trust",
+            "reason": "যাচাই প্রয়োজন: রিটার্ন বা এক্সচেঞ্জ নীতি, পেমেন্ট পদ্ধতি, ডেলিভারির এলাকা ও সময়",
+            "evidence": []
+          },
+          {
+            "dimension": "Clarity",
+            "reason": "যাচাই প্রয়োজন: অর্ডারের পদ্ধতি, বিক্রেতার সাথে যোগাযোগের উপায়",
+            "evidence": [
+              "BDT 120."
+            ]
+          },
+          {
+            "dimension": "Purchase intent",
+            "reason": "যাচাই প্রয়োজন: ডেলিভারি চার্জ",
+            "evidence": [
+              "BDT 120."
+            ]
+          }
+        ],
+        "evaluation_source": "fallback",
+        "fallback_reason": "example_only",
+        "prompt_version": null,
+        "rules_version": "buyer-perspectives-v2",
+        "repeated_language": false
+      },
+      "banglish": {
+        "scores": [
+          60,
+          60,
+          70,
+          50,
+          35,
+          53,
+          38
+        ],
+        "comment": "delivery charges ta ektu confirm korben?",
+        "reason": "Eta deoya tothyo o buyer-er priority diye rule-based assessment; AI motamot ba bikrir forecast noy.",
+        "positive": "Ponno niye kichu tothyo deoya ache; publish korar age jachai korun.",
+        "question": "delivery charges ta ektu confirm korben?",
+        "evidence": [
+          "Canvas bag",
+          "A reusable canvas bag.",
+          "BDT 120."
+        ],
+        "objections": [
+          "delivery charges ta ektu confirm korben?"
+        ],
+        "score_drivers": [
+          {
+            "dimension": "Interest",
+            "reason": "Confirm kora dorkar: product demonstration or review information",
+            "evidence": [
+              "Canvas bag",
+              "A reusable canvas bag."
+            ]
+          },
+          {
+            "dimension": "Relevance",
+            "reason": "Tothyo deoya ache; seller-er daabi alada kore jachai kora hoyni.",
+            "evidence": [
+              "Canvas bag",
+              "A reusable canvas bag."
+            ]
+          },
+          {
+            "dimension": "Value",
+            "reason": "Tothyo deoya ache; seller-er daabi alada kore jachai kora hoyni.",
+            "evidence": [
+              "Canvas bag",
+              "A reusable canvas bag.",
+              "BDT 120."
+            ]
+          },
+          {
+            "dimension": "Price fit",
+            "reason": "Confirm kora dorkar: delivery charges",
+            "evidence": [
+              "BDT 120."
+            ]
+          },
+          {
+            "dimension": "Trust",
+            "reason": "Confirm kora dorkar: return or exchange policy, payment methods, delivery coverage and timing",
+            "evidence": []
+          },
+          {
+            "dimension": "Clarity",
+            "reason": "Confirm kora dorkar: ordering instructions, seller contact options",
+            "evidence": [
+              "BDT 120."
+            ]
+          },
+          {
+            "dimension": "Purchase intent",
+            "reason": "Confirm kora dorkar: delivery charges",
+            "evidence": [
+              "BDT 120."
+            ]
+          }
+        ],
+        "evaluation_source": "fallback",
+        "fallback_reason": "example_only",
+        "prompt_version": null,
+        "rules_version": "buyer-perspectives-v2",
+        "repeated_language": false
+      }
+    },
+    "image_success": {
+      "schema_version": "1.0",
+      "clarity": {
+        "assessment": "good",
+        "feedback": "Use a photograph of the advertised bag.",
+        "severity": "none",
+        "observation": "The red circle has clear visible edges."
+      },
+      "lighting": {
+        "assessment": "good",
+        "feedback": "Use a photograph of the advertised bag.",
+        "severity": "none",
+        "observation": "The synthetic background is uniformly white."
+      },
+      "composition": {
+        "assessment": "good",
+        "feedback": "Use a photograph of the advertised bag.",
+        "severity": "none",
+        "observation": "The red circle is centered in the frame."
+      },
+      "background": {
+        "assessment": "good",
+        "feedback": "Use a photograph of the advertised bag.",
+        "severity": "none",
+        "observation": "No other objects appear on the white background."
+      },
+      "text_readability": {
+        "assessment": "not_applicable",
+        "feedback": "Use a photograph of the advertised bag.",
+        "severity": "none",
+        "observation": "There is no visible text to assess."
+      },
+      "product_consistency": {
+        "assessment": "uncertain",
+        "feedback": "Use a photograph of the advertised bag.",
+        "severity": "uncertain",
+        "observation": "A synthetic circle cannot verify a canvas bag description."
+      },
+      "suggestions": [
+        "Replace the synthetic shape with a clear product photo."
+      ],
+      "metadata": {
+        "source": "ai",
+        "model": "example-only-mocked-model",
+        "prompt_version": "example-only-v1",
+        "failure_code": null,
+        "input_tokens": null,
+        "output_tokens": null,
+        "latency_ms": 0,
+        "input_token_bound": null,
+        "evaluated_at": "2026-11-28T06:00:00Z",
+        "warnings": [
+          "Synthetic fixture; tokens and latency were not measured."
+        ]
+      }
+    },
+    "image_unavailable": {
+      "source": "unavailable",
+      "model": null,
+      "prompt_version": "example-only-v1",
+      "failure_code": "vision_token_count_unavailable",
+      "input_tokens": null,
+      "output_tokens": null,
+      "latency_ms": 0,
+      "input_token_bound": null,
+      "evaluated_at": "2026-11-28T06:00:00Z",
+      "warnings": [
+        "Synthetic fixture; tokens and latency were not measured."
+      ]
+    },
+    "market_input": {
+      "schema_version": "1.0",
+      "product": {
+        "id": 1,
+        "name": "Canvas bag",
+        "category": "Accessories",
+        "price": "120.00",
+        "currency": "BDT",
+        "description": "1 piece canvas bag",
+        "features": [
+          "Reusable"
+        ]
+      },
+      "competitors": [
+        {
+          "id": 1,
+          "product_id": 1,
+          "competitor_name": "Example Store",
+          "product_name": "Canvas bag",
+          "competitor_description": "1 piece canvas bag",
+          "category": "Accessories",
+          "price": "125.00",
+          "currency": "BDT",
+          "offer": null,
+          "platform": "facebook",
+          "observed_at": "2026-11-28",
+          "notes": null,
+          "source_url": "https://example.com/listing",
+          "source_note": "Seller-entered example; not independently verified"
+        }
+      ],
+      "language": "en",
+      "budget": {
+        "max_input_tokens": 16384,
+        "max_output_tokens": 4096,
+        "max_attempts": 1,
+        "timeout_seconds": 90
+      },
+      "comparison_date": "2026-11-28",
+      "max_evidence_age_days": 90
+    },
+    "market_result": {
+      "schema_version": "1.0",
+      "feature_comparison": "Seller-provided features: Reusable\n#1: 1 piece canvas bag",
+      "offer_comparison": "No comparable offer terms were supplied.",
+      "competitive_strengths": [
+        "#1 (2026-11-28): BDT/piece: 120 vs 125 (lower)."
+      ],
+      "competitive_weaknesses": [],
+      "marketing_recommendations": [
+        "Clarify package quantity and units before comparing prices.",
+        "Record a source and recent date for competitor evidence.",
+        "Show the seller's stated features and intended use clearly."
+      ],
+      "limitations": [
+        "Evidence is seller-provided and not independently verified.",
+        "Matching names and units do not verify equal quality, brand or offers."
+      ],
+      "data_status": "sufficient_data",
+      "metadata": {
+        "source": "fallback",
+        "model": null,
+        "prompt_version": "example-only-v1",
+        "failure_code": "example_only",
+        "input_tokens": null,
+        "output_tokens": null,
+        "latency_ms": 0,
+        "input_token_bound": null,
+        "evaluated_at": "2026-11-28T06:00:00Z",
+        "warnings": [
+          "Synthetic fixture; tokens and latency were not measured."
+        ]
+      }
+    },
+    "market_insufficient": {
+      "schema_version": "1.0",
+      "feature_comparison": "Seller-provided features: Reusable\n",
+      "offer_comparison": "No comparable offer terms were supplied.",
+      "competitive_strengths": [],
+      "competitive_weaknesses": [],
+      "marketing_recommendations": [
+        "Clarify package quantity and units before comparing prices.",
+        "Record a source and recent date for competitor evidence.",
+        "Show the seller's stated features and intended use clearly."
+      ],
+      "limitations": [
+        "Evidence is seller-provided and not independently verified.",
+        "Matching names and units do not verify equal quality, brand or offers."
+      ],
+      "data_status": "insufficient_data",
+      "metadata": {
+        "source": "unavailable",
+        "model": null,
+        "prompt_version": "example-only-v1",
+        "failure_code": "insufficient_data",
+        "input_tokens": null,
+        "output_tokens": null,
+        "latency_ms": 0,
+        "input_token_bound": null,
+        "evaluated_at": "2026-11-28T06:00:00Z",
+        "warnings": [
+          "Synthetic fixture; tokens and latency were not measured."
+        ]
+      }
+    },
+    "platforms": {
+      "facebook": {
+        "schema_version": "1.0",
+        "content": {
+          "headline": "Canvas bag: Meet the product",
+          "body": "Meet the product: Canvas bag\n\nBDT 120.00\nReusable",
+          "offer": null,
+          "call_to_action": "Message us for details.",
+          "hashtags": []
+        },
+        "warnings": [
+          "Seller-supplied claims; review before publishing."
+        ],
+        "metadata": {
+          "source": "fallback",
+          "model": null,
+          "prompt_version": "example-only-v1",
+          "failure_code": "example_only",
+          "input_tokens": null,
+          "output_tokens": null,
+          "latency_ms": 0,
+          "input_token_bound": null,
+          "evaluated_at": "2026-11-28T06:00:00Z",
+          "warnings": [
+            "Synthetic fixture; tokens and latency were not measured."
+          ]
+        }
+      },
+      "instagram": {
+        "schema_version": "1.0",
+        "content": {
+          "headline": "Canvas bag: A closer look",
+          "body": "A closer look\nCanvas bag\n• BDT 120.00\n• Reusable",
+          "offer": null,
+          "call_to_action": "Message us for details.",
+          "hashtags": [
+            "bag"
+          ]
+        },
+        "warnings": [
+          "Seller-supplied claims; review before publishing."
+        ],
+        "metadata": {
+          "source": "fallback",
+          "model": null,
+          "prompt_version": "example-only-v1",
+          "failure_code": "example_only",
+          "input_tokens": null,
+          "output_tokens": null,
+          "latency_ms": 0,
+          "input_token_bound": null,
+          "evaluated_at": "2026-11-28T06:00:00Z",
+          "warnings": [
+            "Synthetic fixture; tokens and latency were not measured."
+          ]
+        }
+      },
+      "tiktok": {
+        "schema_version": "1.0",
+        "content": {
+          "headline": "Canvas bag: Show the product in action",
+          "body": "Show the product in action\nShow: Canvas bag\nOn-screen facts / voiceover: BDT 120.00 | Reusable",
+          "offer": null,
+          "call_to_action": "Message us for details.",
+          "hashtags": []
+        },
+        "warnings": [
+          "Seller-supplied claims; review before publishing."
+        ],
+        "metadata": {
+          "source": "fallback",
+          "model": null,
+          "prompt_version": "example-only-v1",
+          "failure_code": "example_only",
+          "input_tokens": null,
+          "output_tokens": null,
+          "latency_ms": 0,
+          "input_token_bound": null,
+          "evaluated_at": "2026-11-28T06:00:00Z",
+          "warnings": [
+            "Synthetic fixture; tokens and latency were not measured."
+          ]
+        }
+      },
+      "whatsapp": {
+        "schema_version": "1.0",
+        "content": {
+          "headline": "Canvas bag: Product information",
+          "body": "*Canvas bag*\nProduct information\nBDT 120.00\nReusable",
+          "offer": null,
+          "call_to_action": "Message us for details.",
+          "hashtags": []
+        },
+        "warnings": [
+          "Seller-supplied claims; review before publishing."
+        ],
+        "metadata": {
+          "source": "fallback",
+          "model": null,
+          "prompt_version": "example-only-v1",
+          "failure_code": "example_only",
+          "input_tokens": null,
+          "output_tokens": null,
+          "latency_ms": 0,
+          "input_token_bound": null,
+          "evaluated_at": "2026-11-28T06:00:00Z",
+          "warnings": [
+            "Synthetic fixture; tokens and latency were not measured."
+          ]
+        }
+      }
+    }
+  }
+}

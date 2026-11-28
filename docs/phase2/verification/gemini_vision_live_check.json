@@ -1,0 +1,176 @@
+{
+  "checked_at": "2026-11-28T11:12:04.703616+00:00",
+  "model": "google/gemini-3.8-flash",
+  "text_model": "deepseek-ai/deepseek-v4.1-flash-1017",
+  "image_dimensions": [
+    192,
+    96
+  ],
+  "image_bytes": 505,
+  "scope": "Synthetic live diagnostic; production adapter availability evaluated separately.",
+  "max_output_tokens": 1536,
+  "inference_attempts": 1,
+  "preflight": {
+    "catalog": {
+      "http_status": 200,
+      "token_count_estimated": false,
+      "latency_ms": 538
+    },
+    "model_accessible": true,
+    "input_modalities": null,
+    "image_capability": null,
+    "token_count": {
+      "http_status": 200,
+      "token_count_estimated": true,
+      "latency_ms": 399
+    },
+    "input_token_count": 2204
+  },
+  "expected_visual_features": [
+    "blue square on the left",
+    "green circle on the right"
+  ],
+  "production_ready": true,
+  "inference": {
+    "http_status": 200,
+    "token_count_estimated": false,
+    "latency_ms": 12498
+  },
+  "live_response_received": true,
+  "schema_valid": true,
+  "image_reading_verified": true,
+  "finish_reason": "stop",
+  "usage": {
+    "prompt_tokens": 1673,
+    "completion_tokens": 426,
+    "total_tokens": 2099
+  },
+  "analysis_result": {
+    "schema_version": "1.0",
+    "clarity": {
+      "assessment": "needs_improvement",
+      "feedback": "Upload a higher-resolution image or vector graphic to eliminate visible pixelation and ensure sharp, clean edges.",
+      "severity": "minor",
+      "observation": "A solid blue square is positioned on the left, and a solid green circle is positioned to its right on a plain white canvas. Noticeable pixelation and jagged stair-stepping are visible along the contours of both shapes."
+    },
+    "lighting": {
+      "assessment": "not_applicable",
+      "feedback": null,
+      "severity": "none",
+      "observation": "The image consists of flat 2D geometric shapes with uniform fill colors and no lighting or shading."
+    },
+    "composition": {
+      "assessment": "good",
+      "feedback": null,
+      "severity": "none",
+      "observation": "The two geometric shapes are evenly spaced horizontally across the frame with balanced margins around them."
+    },
+    "background": {
+      "assessment": "good",
+      "feedback": null,
+      "severity": "none",
+      "observation": "The background is clean, solid white with no artifacts or clutter."
+    },
+    "text_readability": {
+      "assessment": "not_applicable",
+      "feedback": null,
+      "severity": "none",
+      "observation": "There is no text visible in the image."
+    },
+    "product_consistency": {
+      "assessment": "good",
+      "feedback": null,
+      "severity": "none",
+      "observation": "The graphic features synthetic test shapes, aligning directly with the synthetic presentation sample description."
+    },
+    "suggestions": [
+      "Export and upload the graphic at a higher pixel resolution or anti-aliased format to smooth the jagged edges on the shapes."
+    ],
+    "metadata": null
+  },
+  "billing_outcome": "Provider usage recorded",
+  "production_adapter_test": {
+    "checked_at": "2026-11-28T11:15:55.734163+00:00",
+    "scope": "Normal production image adapter with synthetic private Supabase upload; no application database records created.",
+    "model": "google/gemini-3.8-flash",
+    "generation_attempts": 1,
+    "storage_uploaded": true,
+    "cleanup_success": true,
+    "success": true,
+    "vision_ready": true,
+    "analysis_result": {
+      "schema_version": "1.0",
+      "clarity": {
+        "assessment": "good",
+        "feedback": "Shapes are rendered clearly at this resolution; no clarity issues visible.",
+        "severity": "none",
+        "observation": "The image shows a solid blue square and a solid green circle with sharp, well-defined edges and no visible blur or compression artifacts."
+      },
+      "lighting": {
+        "assessment": "not_applicable",
+        "feedback": "Lighting evaluation is not applicable to flat synthetic graphics with no shading.",
+        "severity": "uncertain",
+        "observation": "The image consists of flat, uniform color fills with no gradients, shadows, or highlights."
+      },
+      "composition": {
+        "assessment": "good",
+        "feedback": "Simple, balanced layout with clear separation between the two elements.",
+        "severity": "none",
+        "observation": "Two shapes (blue square left, green circle right) are placed side by side with generous white space around them and roughly balanced spacing."
+      },
+      "background": {
+        "assessment": "good",
+        "feedback": "Clean white background keeps focus on the shapes.",
+        "severity": "none",
+        "observation": "The background is plain white with no texture, noise, or distracting elements."
+      },
+      "text_readability": {
+        "assessment": "not_applicable",
+        "feedback": "No text present, so readability cannot be assessed.",
+        "severity": "uncertain",
+        "observation": "No text is visible anywhere in the image."
+      },
+      "product_consistency": {
+        "assessment": "uncertain",
+        "feedback": "The description is generic, so no direct contradiction is visible, but the image contains no identifiable product; if this is meant to represent a real product listing, the image does not depict one.",
+        "severity": "uncertain",
+        "observation": "The description says only 'a synthetic image for testing presentation feedback' with no specific product claims. The image shows two abstract colored shapes, which is consistent with a synthetic test image but shows no identifiable product."
+      },
+      "suggestions": [
+        "If this is meant to represent a real product, replace the abstract shapes with an actual product photo.",
+        "If used as a test sample, consider adding a small label or caption to make the test purpose self-evident.",
+        "No changes needed to clarity, composition, or background for the current synthetic use case."
+      ],
+      "metadata": {
+        "source": "ai",
+        "model": "google/gemini-3.8-flash",
+        "prompt_version": "image-presentation-v1",
+        "failure_code": null,
+        "input_tokens": 363,
+        "output_tokens": 525,
+        "latency_ms": 23996,
+        "input_token_bound": 11923,
+        "evaluated_at": "2026-11-28T11:16:22.425367Z",
+        "warnings": [
+          "Conservative Gemini input bound: full UTF-8 prompt plus 8192 image and 1024 framing tokens; not a native token count."
+        ]
+      }
+    }
+  },
+  "runtime_readiness": {
+    "schema": "ready",
+    "image_analysis": "healthy matching worker",
+    "market_analysis": "healthy matching worker",
+    "platform_generation": "healthy matching worker",
+    "vision_budget_strategy": "conservative_gemini"
+  },
+  "regression_tests": {
+    "focused_passed": 36,
+    "command": "pytest -q tests/test_gemini_vision.py tests/test_stage2_ai.py tests/test_stage2_jobs.py",
+    "full_passed": 294,
+    "full_skipped": 4,
+    "skipped_reason": "Opt-in PostgreSQL URL was not set; no migration changes in this Gemini update.",
+    "ruff_check": "passed",
+    "ruff_format": "passed (133 files)"
+  }
+}

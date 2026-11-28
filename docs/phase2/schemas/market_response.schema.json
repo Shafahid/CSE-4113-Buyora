@@ -1,5 +1,112 @@
 {
   "$defs": {
+    "AIMetadata": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "enum": [
+            "ai",
+            "fallback",
+            "unavailable"
+          ],
+          "title": "Source",
+          "type": "string"
+        },
+        "model": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Model"
+        },
+        "prompt_version": {
+          "title": "Prompt Version",
+          "type": "string"
+        },
+        "failure_code": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Failure Code"
+        },
+        "input_tokens": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Input Tokens"
+        },
+        "output_tokens": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Output Tokens"
+        },
+        "latency_ms": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Latency Ms",
+          "type": "integer"
+        },
+        "input_token_bound": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Input Token Bound"
+        },
+        "evaluated_at": {
+          "format": "date-time",
+          "title": "Evaluated At",
+          "type": "string"
+        },
+        "warnings": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 20,
+          "title": "Warnings",
+          "type": "array"
+        }
+      },
+      "required": [
+        "source",
+        "prompt_version",
+        "evaluated_at"
+      ],
+      "title": "AIMetadata",
+      "type": "object"
+    },
     "EvidenceSnapshot": {
       "properties": {
         "id": {
@@ -201,7 +308,6 @@
             "$ref": "#/$defs/EvidenceSnapshot"
           },
           "maxItems": 20,
-          "minItems": 1,
           "title": "Competitors",
           "type": "array"
         },
@@ -215,11 +321,30 @@
         },
         "budget": {
           "$ref": "#/$defs/ExecutionBudget"
+        },
+        "comparison_date": {
+          "anyOf": [
+            {
+              "format": "date",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Comparison Date"
+        },
+        "max_evidence_age_days": {
+          "default": 90,
+          "maximum": 365,
+          "minimum": 1,
+          "title": "Max Evidence Age Days",
+          "type": "integer"
         }
       },
       "required": [
         "product",
-        "competitors",
         "language"
       ],
       "title": "MarketInput",
@@ -278,6 +403,26 @@
           "minItems": 1,
           "title": "Limitations",
           "type": "array"
+        },
+        "data_status": {
+          "default": "sufficient_data",
+          "enum": [
+            "sufficient_data",
+            "insufficient_data"
+          ],
+          "title": "Data Status",
+          "type": "string"
+        },
+        "metadata": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AIMetadata"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         }
       },
       "required": [
@@ -449,6 +594,17 @@
       "default": true,
       "title": "Interpretations Require Review",
       "type": "boolean"
+    },
+    "processing_metadata": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/AIMetadata"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
     }
   },
   "required": [

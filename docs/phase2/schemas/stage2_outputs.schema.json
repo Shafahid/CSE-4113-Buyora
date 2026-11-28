@@ -1,0 +1,1008 @@
+{
+  "$defs": {
+    "AIMetadata": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "enum": [
+            "ai",
+            "fallback",
+            "unavailable"
+          ],
+          "title": "Source",
+          "type": "string"
+        },
+        "model": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Model"
+        },
+        "prompt_version": {
+          "title": "Prompt Version",
+          "type": "string"
+        },
+        "failure_code": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Failure Code"
+        },
+        "input_tokens": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Input Tokens"
+        },
+        "output_tokens": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Output Tokens"
+        },
+        "latency_ms": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Latency Ms",
+          "type": "integer"
+        },
+        "input_token_bound": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Input Token Bound"
+        },
+        "evaluated_at": {
+          "format": "date-time",
+          "title": "Evaluated At",
+          "type": "string"
+        },
+        "warnings": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 20,
+          "title": "Warnings",
+          "type": "array"
+        }
+      },
+      "required": [
+        "source",
+        "prompt_version",
+        "evaluated_at"
+      ],
+      "title": "AIMetadata",
+      "type": "object"
+    },
+    "EvidenceSnapshot": {
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "integer"
+        },
+        "product_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Product Id"
+        },
+        "competitor_name": {
+          "title": "Competitor Name",
+          "type": "string"
+        },
+        "product_name": {
+          "title": "Product Name",
+          "type": "string"
+        },
+        "competitor_description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Competitor Description"
+        },
+        "category": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Category"
+        },
+        "price": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Price"
+        },
+        "currency": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Currency"
+        },
+        "offer": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Offer"
+        },
+        "platform": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Platform"
+        },
+        "observed_at": {
+          "format": "date",
+          "title": "Observed At",
+          "type": "string"
+        },
+        "notes": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Notes"
+        },
+        "source_url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Url"
+        },
+        "source_note": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Note"
+        }
+      },
+      "required": [
+        "id",
+        "product_id",
+        "competitor_name",
+        "product_name",
+        "competitor_description",
+        "category",
+        "price",
+        "currency",
+        "offer",
+        "platform",
+        "observed_at",
+        "notes"
+      ],
+      "title": "EvidenceSnapshot",
+      "type": "object"
+    },
+    "ExecutionBudget": {
+      "additionalProperties": false,
+      "properties": {
+        "max_input_tokens": {
+          "default": 16384,
+          "minimum": 1,
+          "title": "Max Input Tokens",
+          "type": "integer"
+        },
+        "max_output_tokens": {
+          "default": 4096,
+          "minimum": 1,
+          "title": "Max Output Tokens",
+          "type": "integer"
+        },
+        "max_attempts": {
+          "const": 1,
+          "default": 1,
+          "title": "Max Attempts",
+          "type": "integer"
+        },
+        "timeout_seconds": {
+          "default": 90,
+          "maximum": 180,
+          "minimum": 1,
+          "title": "Timeout Seconds",
+          "type": "integer"
+        }
+      },
+      "title": "ExecutionBudget",
+      "type": "object"
+    },
+    "ImageAnalysisResult": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "1.0",
+          "default": "1.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "clarity": {
+          "$ref": "#/$defs/ImageFinding"
+        },
+        "lighting": {
+          "$ref": "#/$defs/ImageFinding"
+        },
+        "composition": {
+          "$ref": "#/$defs/ImageFinding"
+        },
+        "background": {
+          "$ref": "#/$defs/ImageFinding"
+        },
+        "text_readability": {
+          "$ref": "#/$defs/ImageFinding"
+        },
+        "product_consistency": {
+          "$ref": "#/$defs/ImageFinding"
+        },
+        "suggestions": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 20,
+          "title": "Suggestions",
+          "type": "array"
+        },
+        "metadata": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AIMetadata"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "clarity",
+        "lighting",
+        "composition",
+        "background",
+        "text_readability",
+        "product_consistency",
+        "suggestions"
+      ],
+      "title": "ImageAnalysisResult",
+      "type": "object"
+    },
+    "ImageFinding": {
+      "additionalProperties": false,
+      "properties": {
+        "assessment": {
+          "enum": [
+            "good",
+            "needs_improvement",
+            "not_applicable",
+            "uncertain"
+          ],
+          "title": "Assessment",
+          "type": "string"
+        },
+        "feedback": {
+          "anyOf": [
+            {
+              "maxLength": 2000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Feedback"
+        },
+        "severity": {
+          "default": "uncertain",
+          "enum": [
+            "none",
+            "minor",
+            "major",
+            "uncertain"
+          ],
+          "title": "Severity",
+          "type": "string"
+        },
+        "observation": {
+          "anyOf": [
+            {
+              "maxLength": 2000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Observation"
+        }
+      },
+      "required": [
+        "assessment",
+        "feedback"
+      ],
+      "title": "ImageFinding",
+      "type": "object"
+    },
+    "MarketInput": {
+      "properties": {
+        "schema_version": {
+          "const": "1.0",
+          "default": "1.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "product": {
+          "$ref": "#/$defs/ProductSnapshot"
+        },
+        "competitors": {
+          "items": {
+            "$ref": "#/$defs/EvidenceSnapshot"
+          },
+          "maxItems": 20,
+          "title": "Competitors",
+          "type": "array"
+        },
+        "language": {
+          "enum": [
+            "en",
+            "bn"
+          ],
+          "title": "Language",
+          "type": "string"
+        },
+        "budget": {
+          "$ref": "#/$defs/ExecutionBudget"
+        },
+        "comparison_date": {
+          "anyOf": [
+            {
+              "format": "date",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Comparison Date"
+        },
+        "max_evidence_age_days": {
+          "default": 90,
+          "maximum": 365,
+          "minimum": 1,
+          "title": "Max Evidence Age Days",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "product",
+        "language"
+      ],
+      "title": "MarketInput",
+      "type": "object"
+    },
+    "MarketResult": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "1.0",
+          "default": "1.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "feature_comparison": {
+          "maxLength": 3000,
+          "minLength": 1,
+          "title": "Feature Comparison",
+          "type": "string"
+        },
+        "offer_comparison": {
+          "maxLength": 3000,
+          "minLength": 1,
+          "title": "Offer Comparison",
+          "type": "string"
+        },
+        "competitive_strengths": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 20,
+          "title": "Competitive Strengths",
+          "type": "array"
+        },
+        "competitive_weaknesses": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 20,
+          "title": "Competitive Weaknesses",
+          "type": "array"
+        },
+        "marketing_recommendations": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 20,
+          "title": "Marketing Recommendations",
+          "type": "array"
+        },
+        "limitations": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 20,
+          "minItems": 1,
+          "title": "Limitations",
+          "type": "array"
+        },
+        "data_status": {
+          "default": "sufficient_data",
+          "enum": [
+            "sufficient_data",
+            "insufficient_data"
+          ],
+          "title": "Data Status",
+          "type": "string"
+        },
+        "metadata": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AIMetadata"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "feature_comparison",
+        "offer_comparison",
+        "competitive_strengths",
+        "competitive_weaknesses",
+        "marketing_recommendations",
+        "limitations"
+      ],
+      "title": "MarketResult",
+      "type": "object"
+    },
+    "PersonaProfile": {
+      "additionalProperties": false,
+      "description": "Extensible persona input. Its ID identifies a profile, not a real person.",
+      "properties": {
+        "id": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "name": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "role": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Role",
+          "type": "string"
+        },
+        "age": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Age",
+          "type": "string"
+        },
+        "location": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Location",
+          "type": "string"
+        },
+        "need": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Need",
+          "type": "string"
+        },
+        "budget": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Budget",
+          "type": "string"
+        },
+        "color": {
+          "maxLength": 20,
+          "minLength": 1,
+          "title": "Color",
+          "type": "string"
+        },
+        "initials": {
+          "maxLength": 4,
+          "minLength": 1,
+          "title": "Initials",
+          "type": "string"
+        },
+        "context": {
+          "default": "",
+          "maxLength": 2000,
+          "title": "Context",
+          "type": "string"
+        },
+        "description_language": {
+          "default": "en",
+          "enum": [
+            "en",
+            "bn"
+          ],
+          "title": "Description Language",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "role",
+        "age",
+        "location",
+        "need",
+        "budget",
+        "color",
+        "initials"
+      ],
+      "title": "PersonaProfile",
+      "type": "object"
+    },
+    "PlatformGenerationResult": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "1.0",
+          "default": "1.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "content": {
+          "$ref": "#/$defs/VariantContent"
+        },
+        "warnings": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 20,
+          "title": "Warnings",
+          "type": "array"
+        },
+        "metadata": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AIMetadata"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "content"
+      ],
+      "title": "PlatformGenerationResult",
+      "type": "object"
+    },
+    "ProductSnapshot": {
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "integer"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "category": {
+          "title": "Category",
+          "type": "string"
+        },
+        "price": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Price"
+        },
+        "currency": {
+          "title": "Currency",
+          "type": "string"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Description"
+        },
+        "features": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Features",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "category",
+        "price",
+        "currency",
+        "description",
+        "features"
+      ],
+      "title": "ProductSnapshot",
+      "type": "object"
+    },
+    "ScoreDriver": {
+      "additionalProperties": false,
+      "properties": {
+        "dimension": {
+          "maxLength": 40,
+          "minLength": 1,
+          "title": "Dimension",
+          "type": "string"
+        },
+        "reason": {
+          "maxLength": 600,
+          "minLength": 1,
+          "title": "Reason",
+          "type": "string"
+        },
+        "evidence": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 12,
+          "title": "Evidence",
+          "type": "array"
+        }
+      },
+      "required": [
+        "dimension",
+        "reason"
+      ],
+      "title": "ScoreDriver",
+      "type": "object"
+    },
+    "VariantContent": {
+      "additionalProperties": false,
+      "properties": {
+        "headline": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Headline",
+          "type": "string"
+        },
+        "body": {
+          "maxLength": 10000,
+          "minLength": 1,
+          "title": "Body",
+          "type": "string"
+        },
+        "offer": {
+          "anyOf": [
+            {
+              "maxLength": 2000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Offer"
+        },
+        "call_to_action": {
+          "anyOf": [
+            {
+              "maxLength": 1000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Call To Action"
+        },
+        "hashtags": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 50,
+          "title": "Hashtags",
+          "type": "array"
+        }
+      },
+      "required": [
+        "headline",
+        "body"
+      ],
+      "title": "VariantContent",
+      "type": "object"
+    },
+    "Verdict": {
+      "additionalProperties": false,
+      "properties": {
+        "scores": {
+          "items": {
+            "maximum": 100,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "maxItems": 7,
+          "minItems": 7,
+          "title": "Scores",
+          "type": "array"
+        },
+        "comment": {
+          "maxLength": 1500,
+          "minLength": 1,
+          "title": "Comment",
+          "type": "string"
+        },
+        "reason": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Reason",
+          "type": "string"
+        },
+        "positive": {
+          "maxLength": 1500,
+          "minLength": 1,
+          "title": "Positive",
+          "type": "string"
+        },
+        "question": {
+          "maxLength": 1500,
+          "minLength": 1,
+          "title": "Question",
+          "type": "string"
+        },
+        "evidence": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 12,
+          "minItems": 1,
+          "title": "Evidence",
+          "type": "array"
+        },
+        "objections": {
+          "items": {
+            "maxLength": 1000,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 12,
+          "title": "Objections",
+          "type": "array"
+        },
+        "score_drivers": {
+          "items": {
+            "$ref": "#/$defs/ScoreDriver"
+          },
+          "maxItems": 7,
+          "title": "Score Drivers",
+          "type": "array"
+        },
+        "evaluation_source": {
+          "default": "ai",
+          "enum": [
+            "ai",
+            "fallback"
+          ],
+          "title": "Evaluation Source",
+          "type": "string"
+        },
+        "fallback_reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Fallback Reason"
+        },
+        "prompt_version": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Prompt Version"
+        },
+        "rules_version": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Rules Version"
+        },
+        "repeated_language": {
+          "default": false,
+          "title": "Repeated Language",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "scores",
+        "comment",
+        "reason",
+        "positive",
+        "question",
+        "evidence"
+      ],
+      "title": "Verdict",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "personas": {
+      "items": {
+        "$ref": "#/$defs/PersonaProfile"
+      },
+      "title": "Personas",
+      "type": "array"
+    },
+    "reactions": {
+      "additionalProperties": {
+        "$ref": "#/$defs/Verdict"
+      },
+      "title": "Reactions",
+      "type": "object"
+    },
+    "image_success": {
+      "$ref": "#/$defs/ImageAnalysisResult"
+    },
+    "image_unavailable": {
+      "$ref": "#/$defs/AIMetadata"
+    },
+    "market_input": {
+      "$ref": "#/$defs/MarketInput"
+    },
+    "market_result": {
+      "$ref": "#/$defs/MarketResult"
+    },
+    "market_insufficient": {
+      "$ref": "#/$defs/MarketResult"
+    },
+    "platforms": {
+      "additionalProperties": {
+        "$ref": "#/$defs/PlatformGenerationResult"
+      },
+      "title": "Platforms",
+      "type": "object"
+    }
+  },
+  "required": [
+    "personas",
+    "reactions",
+    "image_success",
+    "image_unavailable",
+    "market_input",
+    "market_result",
+    "market_insufficient",
+    "platforms"
+  ],
+  "title": "Stage2Samples",
+  "type": "object"
+}

@@ -264,6 +264,8 @@ def prepare_inputs(
             "json_mode": settings.llm_json_mode,
         },
     }
+    if data.writing_style == "banglish":
+        inputs["writing_style"] = "banglish"
     if data.image_analysis_ids or data.market_analysis_ids:
         from app.services.analysis_attachments import snapshot_analyses
 
@@ -420,6 +422,7 @@ def build_report(run, rows):
                 "fallbackReason": verdict.get("fallback_reason"),
                 "objections": verdict.get("objections", []),
                 "scoreDrivers": verdict.get("score_drivers", []),
+                "repeatedLanguage": verdict.get("repeated_language", False),
             }
         )
     usage = {

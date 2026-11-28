@@ -5,30 +5,43 @@
     "schema_version": "1.0",
     "clarity": {
       "assessment": "good",
-      "feedback": "Example: the product is visible."
+      "feedback": "Example: the product is visible.",
+      "severity": "uncertain",
+      "observation": null
     },
     "lighting": {
       "assessment": "good",
-      "feedback": "Example: the product is visible."
+      "feedback": "Example: the product is visible.",
+      "severity": "uncertain",
+      "observation": null
     },
     "composition": {
       "assessment": "good",
-      "feedback": "Example: the product is visible."
+      "feedback": "Example: the product is visible.",
+      "severity": "uncertain",
+      "observation": null
     },
     "background": {
       "assessment": "good",
-      "feedback": "Example: the product is visible."
+      "feedback": "Example: the product is visible.",
+      "severity": "uncertain",
+      "observation": null
     },
     "text_readability": {
       "assessment": "good",
-      "feedback": "Example: the product is visible."
+      "feedback": "Example: the product is visible.",
+      "severity": "uncertain",
+      "observation": null
     },
     "product_consistency": {
       "assessment": "good",
-      "feedback": "Example: the product is visible."
+      "feedback": "Example: the product is visible.",
+      "severity": "uncertain",
+      "observation": null
     },
     "suggestions": [
       "Example: use a plain background."
-    ]
+    ],
+    "metadata": null
   }
 }

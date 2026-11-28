@@ -42,7 +42,9 @@
         "max_output_tokens": 4096,
         "max_attempts": 1,
         "timeout_seconds": 90
-      }
+      },
+      "comparison_date": null,
+      "max_evidence_age_days": 90
     },
     "analysis_result": {
       "schema_version": "1.0",
@@ -55,7 +57,9 @@
       ],
       "limitations": [
         "Example data; no live market research was performed."
-      ]
+      ],
+      "data_status": "sufficient_data",
+      "metadata": null
     },
     "error_message": null,
     "created_at": "2026-11-28T06:00:00Z",
@@ -67,10 +71,17 @@
         "price": "125.00",
         "currency": "BDT",
         "observed_at": "2026-11-28",
-        "comparison": "higher"
+        "comparison": "not_comparable",
+        "comparison_basis": null,
+        "seller_unit_price": null,
+        "competitor_unit_price": null,
+        "limitations": [
+          "not_comparable"
+        ]
       }
     ],
     "evidence_notice": "Competitor information is seller-provided and not independently verified.",
-    "interpretations_require_review": true
+    "interpretations_require_review": true,
+    "processing_metadata": null
   }
 }

@@ -91,6 +91,18 @@ def test_clean_upgrade_preserves_existing_phase1_and_provenance(disposable_postg
         evidence.source_note = "Seller-provided observation"
         db.commit()
     inspector = inspect(engine)
+    assert inspector.has_table("ai_jobs", schema="buyora")
+    assert inspector.has_table("ai_worker_heartbeats", schema="buyora")
+    for table in ("product_image_analyses", "market_analyses", "platform_variants"):
+        assert "processing_metadata" in {
+            column["name"] for column in inspector.get_columns(table, schema="public")
+        }
+    assert any(
+        "fallback" in constraint["sqltext"]
+        for constraint in inspector.get_check_constraints(
+            "platform_variant_revisions", schema="public"
+        )
+    )
     assert inspector.has_table("ai_request_reservations", schema="buyora")
     assert any(
         index["column_names"] == ["seller_id", "created_at"]
@@ -101,7 +113,7 @@ def test_clean_upgrade_preserves_existing_phase1_and_provenance(disposable_postg
         command.downgrade(config, "0016")
     with engine.connect() as c:
         assert (
-            c.scalar(text("SELECT version_num FROM public.alembic_version")) == "0017"
+            c.scalar(text("SELECT version_num FROM public.alembic_version")) == "0018"
         )
         assert (
             c.scalar(
@@ -214,3 +226,48 @@ def test_phase1_report_survives_upgrade_and_apis_still_work(
         )
         assert evidence.status_code == 201
         assert evidence.json()["source_url"] == "https://example.com/bag"
+
+
+def test_optional_queue_skips_locked_jobs_and_never_replays_expired_calls(
+    disposable_postgres, settings, monkeypatch
+):
+    from datetime import timedelta
+
+    from fastapi.testclient import TestClient
+    from test_stage2_jobs import create, prepare
+
+    from app.main import create_app
+    from app.models import AIJob
+    from app.services.ai import jobs
+
+    engine, config = disposable_postgres
+    command.upgrade(config, "head")
+    monkeypatch.setattr("app.main.create_db_engine", lambda _: engine)
+    with TestClient(create_app(settings)) as client:
+        _, post, settings, _, calls = prepare(client)
+        create(client, post)
+        create(client, post)
+        factory = client.app.state.session_factory
+        with factory() as locked:
+            first = locked.scalar(
+                select(AIJob).order_by(AIJob.created_at).limit(1).with_for_update()
+            )
+            with ThreadPoolExecutor(max_workers=1) as executor:
+                second = executor.submit(jobs.claim, factory, settings).result(
+                    timeout=5
+                )
+            assert second and second[0] != first.id
+        claimed = jobs.claim(factory, settings)
+        assert claimed and claimed[0] != second[0]
+        assert jobs.claim(factory, settings) is None
+        with factory() as db:
+            for job in db.scalars(select(AIJob)):
+                job.lease_until = jobs.now() - timedelta(seconds=1)
+            db.commit()
+        assert jobs.claim(factory, settings) is None
+        assert jobs.claim(factory, settings) is None
+        with factory() as db:
+            assert {job.error_code for job in db.scalars(select(AIJob))} == {
+                "interrupted"
+            }
+        assert calls == []

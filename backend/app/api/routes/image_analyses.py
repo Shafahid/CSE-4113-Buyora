@@ -11,6 +11,7 @@ from app.db.session import DbSession
 from app.models.auth import User
 from app.models.product_image import ProductImage
 from app.models.product_image_analysis import ProductImageAnalysis
+from app.schemas.phase2 import AIMetadata
 from app.services.ai_limits import lock_ai_seller, reserve_ai_request
 from app.services.image_analysis import ImageAnalysisResult
 from app.services.processing_admission import (
@@ -47,6 +48,7 @@ class AnalysisResponse(BaseModel):
     processing_available: bool = False
     image_revision: str | None = None
     is_current_image: bool | None = None
+    processing_metadata: AIMetadata | None = None
 
 
 class AnalysisList(BaseModel):

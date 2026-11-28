@@ -28,10 +28,14 @@ def isolated_environment(monkeypatch: pytest.MonkeyPatch) -> None:
         "PHASE2_AI_MAX_INPUT_TOKENS",
         "PHASE2_AI_MAX_OUTPUT_TOKENS",
         "PHASE2_AI_TIMEOUT_SECONDS",
+        "PHASE2_AI_ENABLED",
+        "TOKEN_BD_VISION_MODEL",
+        "MARKET_EVIDENCE_MAX_AGE_DAYS",
     ):
         monkeypatch.delenv(name, raising=False)
     monkeypatch.setitem(Settings.model_config, "env_file", None)
     monkeypatch.setenv("SIMULATION_WORKER_ENABLED", "false")
+    monkeypatch.setenv("PHASE2_AI_ENABLED", "false")
     monkeypatch.setenv("LITELLM_LOCAL_MODEL_COST_MAP", "true")
 
 

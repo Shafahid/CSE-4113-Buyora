@@ -11,6 +11,7 @@ from app.db.session import DbSession
 from app.models.auth import User
 from app.models.platform_variant import PlatformVariant, PlatformVariantRevision
 from app.models.post import PostVersion
+from app.schemas.phase2 import AIMetadata
 from app.services.ai_limits import lock_ai_seller, reserve_ai_request
 from app.services.platform_content import Platform, VariantContent
 from app.services.processing_admission import (
@@ -38,7 +39,7 @@ class RevisionResponse(VariantContent):
     id: int
     variant_id: int
     revision_number: int
-    origin: Literal["seller", "ai"]
+    origin: Literal["seller", "ai", "fallback"]
     created_at: datetime
 
 
@@ -56,6 +57,7 @@ class VariantResponse(BaseModel):
     updated_at: datetime
     processing_available: bool = False
     latest_revision: RevisionResponse | None = None
+    processing_metadata: AIMetadata | None = None
 
 
 class VariantList(BaseModel):

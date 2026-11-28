@@ -65,6 +65,9 @@ class Settings(BaseSettings):
     phase2_ai_max_input_tokens: int = Field(default=16384, ge=256, le=100000)
     phase2_ai_max_output_tokens: int = Field(default=4096, ge=256, le=16384)
     phase2_ai_timeout_seconds: int = Field(default=90, ge=5, le=180)
+    phase2_ai_enabled: bool = True
+    token_bd_vision_model: str | None = None
+    market_evidence_max_age_days: int = Field(default=90, ge=1, le=365)
 
     @model_validator(mode="after")
     def validate_cookie(self):

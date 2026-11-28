@@ -12,6 +12,8 @@
     ],
     "limitations": [
       "Example data; no live market research was performed."
-    ]
+    ],
+    "data_status": "sufficient_data",
+    "metadata": null
   }
 }

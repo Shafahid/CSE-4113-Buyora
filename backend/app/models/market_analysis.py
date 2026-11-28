@@ -44,6 +44,7 @@ class MarketAnalysis(Base):
     language: Mapped[str] = mapped_column(Text, nullable=False, server_default="en")
     input_snapshot: Mapped[dict] = mapped_column(JSON_TYPE, nullable=False)
     analysis_result: Mapped[dict | None] = mapped_column(JSON_TYPE)
+    processing_metadata: Mapped[dict | None] = mapped_column(JSON_TYPE)
     error_message: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()

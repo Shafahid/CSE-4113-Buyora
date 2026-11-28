@@ -74,11 +74,19 @@ Platform: `pending -> processing -> ready|failed`; seller-written content starts
 at `ready`. Results are null until completed. Errors never include provider
 messages, keys, SQL or private storage keys.
 
-No production optional-AI processor is installed in Stage 1. All three request
-paths reject new generated work with 503 until a `DurableProcessingAdmission`
-implementation verifies worker health and enqueues transactionally. A boolean
-flag cannot enable processing. Manual variants and saved history remain usable.
-Only test doubles produce sample results during Stage 1.
+Stage 2 installs `ai.jobs.DatabaseAdmission` and a leased optional-AI worker.
+All three request paths require a matching heartbeat newer than 30 seconds with
+the requested capability. Missing/stale/incapable workers return 503 without
+accepting work. Image admission additionally requires verified image support and
+a validated token-budget strategy. The pinned Gemini 3.8 Flash policy uses a
+conservative full-text/single-image bound; other models require explicit catalog
+capabilities and native token counting. Gateway estimates alone never enable work.
+Manual variants and saved history remain usable. See `AI_OUTPUTS.md` for checks.
+
+Responses add nullable `processing_metadata`; completed result JSON adds
+nullable `metadata` with source/model/prompt/time, actual usage or null, latency,
+preflight bound and safe failure code. Historical metadata may be absent/null.
+Revision origins now include `fallback`; preserve that label in reports and UI.
 
 ## Admission limits and Stage 2 budget obligation
 
@@ -100,11 +108,11 @@ Manual variants, reads and unavailable requests consume no allowance. These are
 token safeguards, not an estimate or guarantee of currency charges. Existing
 simulation/persona jobs retain their existing budgets and retry rules.
 
-Mehdi's adapters must read the saved `ExecutionBudget`, count the complete prompt
-and vision input before calling, enforce output limits/deadlines, and make at
-most one provider attempt per reservation. If the provider cannot enforce the
-allowance, reject the job. Further paid attempts require fresh admission.
-Do not enable production processing until the durable worker implements this.
+Stage 2 adapters read the saved `ExecutionBudget`, bound the complete prompt and
+vision input before calling, enforce output limits/deadlines and make at most one
+provider attempt per reservation. Unsupported allowances fail safely. Unknown
+in-flight calls are never automatically reissued after lease expiry. Further
+paid attempts require fresh admission; old pending rows are not silently replayed.
 
 ## Optional report attachments
 

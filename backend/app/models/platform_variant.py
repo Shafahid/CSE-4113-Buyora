@@ -44,6 +44,7 @@ class PlatformVariant(Base):
     preferences: Mapped[str | None] = mapped_column(Text)
     status: Mapped[str] = mapped_column(Text, nullable=False)
     error_message: Mapped[str | None] = mapped_column(Text)
+    processing_metadata: Mapped[dict | None] = mapped_column(JSON_TYPE)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
@@ -62,7 +63,7 @@ class PlatformVariantRevision(Base):
             "revision_number > 0", name=conv("platform_variant_revision_number_check")
         ),
         CheckConstraint(
-            "origin IN ('seller', 'ai')",
+            "origin IN ('seller', 'ai', 'fallback')",
             name=conv("platform_variant_revision_origin_check"),
         ),
         {"schema": "public"},

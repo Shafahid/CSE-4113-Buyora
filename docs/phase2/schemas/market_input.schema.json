@@ -262,7 +262,6 @@
         "$ref": "#/$defs/EvidenceSnapshot"
       },
       "maxItems": 20,
-      "minItems": 1,
       "title": "Competitors",
       "type": "array"
     },
@@ -276,11 +275,30 @@
     },
     "budget": {
       "$ref": "#/$defs/ExecutionBudget"
+    },
+    "comparison_date": {
+      "anyOf": [
+        {
+          "format": "date",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Comparison Date"
+    },
+    "max_evidence_age_days": {
+      "default": 90,
+      "maximum": 365,
+      "minimum": 1,
+      "title": "Max Evidence Age Days",
+      "type": "integer"
     }
   },
   "required": [
     "product",
-    "competitors",
     "language"
   ],
   "title": "MarketInput",

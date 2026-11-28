@@ -1,5 +1,9 @@
 # Stage 1 handover checklist
 
+Stage 2 implementation and its current runtime limitations are recorded in
+[Mehdi's handoff](handoffs/02-mehdi-to-abu-bakar.md). This checklist retains the
+Stage 1 verification record; it does not imply team acceptance or PR merge.
+
 Status: technical implementation verified (260 backend tests passed); team
 approval and PR merge are pending.
 This file records evidence, not inferred meeting attendance or reviewer consent.

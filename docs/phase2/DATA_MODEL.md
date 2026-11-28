@@ -9,9 +9,11 @@
 | `product_image_analyses` | public | Seller/product FKs; nullable active-image FK; permanent original ID and private snapshot key; completed-only result. |
 | `market_analyses` | public | Seller/product FKs; immutable JSON product/evidence/source/date snapshot; completed-only result. |
 | `platform_variants` | public | Exact source-post-version FK; constrained platform/language/state. |
-| `platform_variant_revisions` | public | Variant FK; unique `(variant_id, revision_number)`; append-only seller/AI content. |
+| `platform_variant_revisions` | public | Variant FK; unique `(variant_id, revision_number)`; append-only seller/AI/fallback content. |
 | `storage_cleanup_tasks` | public | Unique object reference; retryable cleanup skips referenced objects. |
 | `ai_request_reservations` | buyora | Seller FK; unique `(kind,resource_id)`; positive reserved tokens; policy JSON and timestamp. |
+| `ai_jobs` | buyora | Unique reservation/resource; immutable payload, configuration fingerprint, lease token/deadline, safe error and usage. |
+| `ai_worker_heartbeats` | buyora | Worker configuration, advertised capabilities and freshness index. |
 
 Public-schema placement preserves established Phase 1 relationships. Runtime
 ownership is enforced in authenticated FastAPI routes. Migration grants revoke
@@ -45,6 +47,8 @@ without an exact image revision remain unknown and fail safely if dispatched.
 - 0015: market-analysis snapshots.
 - 0016: immutable image references and durable storage cleanup.
 - 0017: nullable competitor `source_url`/`source_note`; private AI reservations.
+- 0018: private optional-AI queue/heartbeats, nullable public analysis/variant
+  `processing_metadata`, and explicitly labeled fallback revision origin.
 
 0017 is additive. Existing competitor records keep null provenance, and existing
 products, posts, simulations and reports are not rewritten. No schema mutation
@@ -57,11 +61,12 @@ occurs at API startup.
 2. Run isolated migration and API tests before upgrading a shared database.
 3. From `backend/`, run `uv run alembic current`, `uv run alembic heads`, then
    `uv run alembic upgrade head` as a separate deployment step.
-4. Confirm revision 0017, the two provenance columns, the reservation table/index,
-   and restricted grants. Run `uv run python scripts/check_simulation_setup.py`.
+4. Confirm revision 0018, provenance/processing metadata, reservation/queue tables,
+   indices and restricted grants. Run `uv run python scripts/check_simulation_setup.py`
+   and `uv run python scripts/check_stage2_setup.py --provider`.
 5. Restart API/worker and smoke-test login, existing product/post/report access,
-   image history and competitor CRUD. Optional generation remains unavailable
-   until its durable integration is installed.
+   image history and competitor CRUD. Optional generation requires a fresh matching
+   capable worker; vision also requires a validated input-budget strategy.
 
 ## Downgrade and recovery policy
 

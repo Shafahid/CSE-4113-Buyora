@@ -20,6 +20,7 @@ from app.api.routes.products import router as products_router
 from app.api.routes.simulations import router as simulations_router
 from app.core.config import Settings
 from app.db.session import create_db_engine
+from app.services.ai.jobs import worker_loop as optional_worker_loop
 from app.services.simulation_worker import worker_loop
 
 
@@ -34,15 +35,24 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             bind=engine, expire_on_commit=False
         )
         worker = None
+        optional_worker = None
         # The worker also processes deterministic fallback-only runs, so an API
         # key is not a prerequisite for starting it.
         if settings.simulation_worker_enabled:
             worker = asyncio.create_task(
                 worker_loop(application.state.session_factory, settings)
             )
+            if settings.phase2_ai_enabled:
+                optional_worker = asyncio.create_task(
+                    optional_worker_loop(application.state.session_factory, settings)
+                )
         try:
             yield
         finally:
+            if optional_worker:
+                optional_worker.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await optional_worker
             if worker:
                 worker.cancel()
                 with contextlib.suppress(asyncio.CancelledError):

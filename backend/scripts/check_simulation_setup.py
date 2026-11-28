@@ -15,14 +15,31 @@ from sqlalchemy import false, inspect, select, text  # noqa: E402
 from app.core.config import BACKEND_DIR, Settings  # noqa: E402
 from app.db.session import create_db_engine  # noqa: E402
 from app.models import (  # noqa: E402
+    AIJob,
+    AIRequestReservation,
+    AIWorkerHeartbeat,
+    MarketAnalysis,
     PersonaAdaptation,
     PersonaEvaluation,
+    PlatformVariant,
+    ProductImageAnalysis,
     SimulationCache,
     SimulationRun,
 )
 from app.services.simulation_worker import worker_failure_hint  # noqa: E402
 
-WORKER_MODELS = (SimulationRun, PersonaEvaluation, SimulationCache, PersonaAdaptation)
+WORKER_MODELS = (
+    SimulationRun,
+    PersonaEvaluation,
+    SimulationCache,
+    PersonaAdaptation,
+    AIRequestReservation,
+    AIJob,
+    AIWorkerHeartbeat,
+    ProductImageAnalysis,
+    MarketAnalysis,
+    PlatformVariant,
+)
 
 
 def database_revisions(engine):

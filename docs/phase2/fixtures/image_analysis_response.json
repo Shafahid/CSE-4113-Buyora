@@ -12,31 +12,44 @@
       "schema_version": "1.0",
       "clarity": {
         "assessment": "good",
-        "feedback": "Example: the product is visible."
+        "feedback": "Example: the product is visible.",
+        "severity": "uncertain",
+        "observation": null
       },
       "lighting": {
         "assessment": "good",
-        "feedback": "Example: the product is visible."
+        "feedback": "Example: the product is visible.",
+        "severity": "uncertain",
+        "observation": null
       },
       "composition": {
         "assessment": "good",
-        "feedback": "Example: the product is visible."
+        "feedback": "Example: the product is visible.",
+        "severity": "uncertain",
+        "observation": null
       },
       "background": {
         "assessment": "good",
-        "feedback": "Example: the product is visible."
+        "feedback": "Example: the product is visible.",
+        "severity": "uncertain",
+        "observation": null
       },
       "text_readability": {
         "assessment": "good",
-        "feedback": "Example: the product is visible."
+        "feedback": "Example: the product is visible.",
+        "severity": "uncertain",
+        "observation": null
       },
       "product_consistency": {
         "assessment": "good",
-        "feedback": "Example: the product is visible."
+        "feedback": "Example: the product is visible.",
+        "severity": "uncertain",
+        "observation": null
       },
       "suggestions": [
         "Example: use a plain background."
-      ]
+      ],
+      "metadata": null
     },
     "error_message": null,
     "created_at": "2026-11-28T06:00:00Z",
@@ -44,6 +57,7 @@
     "completed_at": "2026-11-28T06:00:00Z",
     "processing_available": false,
     "image_revision": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-    "is_current_image": true
+    "is_current_image": true,
+    "processing_metadata": null
   }
 }

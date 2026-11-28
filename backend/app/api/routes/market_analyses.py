@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -11,7 +11,7 @@ from app.db.session import DbSession
 from app.models.auth import User
 from app.models.competitor_evidence import CompetitorEvidence
 from app.models.market_analysis import MarketAnalysis
-from app.schemas.phase2 import ExecutionBudget
+from app.schemas.phase2 import AIMetadata, ExecutionBudget
 from app.services.ai_limits import lock_ai_seller, reserve_ai_request
 from app.services.market_analysis import (
     EvidenceSnapshot,
@@ -66,10 +66,13 @@ class MarketResponse(BaseModel):
         "Competitor information is seller-provided and not independently verified."
     )
     interpretations_require_review: bool = True
+    processing_metadata: AIMetadata | None = None
 
 
 def render(row):
     snapshot = MarketInput.model_validate(row.input_snapshot)
+    if snapshot.comparison_date is None:
+        snapshot.comparison_date = row.created_at.date()
     return MarketResponse.model_validate(
         {
             "id": row.id,
@@ -83,6 +86,7 @@ def render(row):
             "updated_at": row.updated_at,
             "completed_at": row.completed_at,
             "price_observations": price_observations(snapshot),
+            "processing_metadata": row.processing_metadata,
         }
     )
 
@@ -132,6 +136,8 @@ def create_analysis(
             for i in data.competitor_evidence_ids
         ],
         language=data.language,
+        comparison_date=datetime.now(UTC).date(),
+        max_evidence_age_days=request.app.state.settings.market_evidence_max_age_days,
     )
     analysis = MarketAnalysis(
         product_id=product.id,

@@ -1,4 +1,4 @@
-"""Provider-independent contracts; no generator or provider is configured.
+"""Provider-independent contracts; production adapters live in services.ai.
 
 Generated content must be reviewed against source facts before it is saved as an
 AI revision. Schema validation alone cannot establish factual grounding.
@@ -8,7 +8,7 @@ from typing import Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.schemas.phase2 import ExecutionBudget
+from app.schemas.phase2 import AIMetadata, ExecutionBudget
 
 Platform = Literal["facebook", "instagram", "tiktok", "whatsapp"]
 
@@ -38,6 +38,7 @@ class PlatformGenerationResult(BaseModel):
     schema_version: Literal["1.0"] = "1.0"
     content: VariantContent
     warnings: list[str] = Field(default_factory=list, max_length=20)
+    metadata: AIMetadata | None = None
 
 
 class PlatformContentGenerator(Protocol):

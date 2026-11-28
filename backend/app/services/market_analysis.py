@@ -1,7 +1,7 @@
-"""Provider-independent market analysis contracts and future worker hook.
+"""Provider-independent market analysis contracts and legacy direct hook.
 
 Interpretations require human review; schema validation cannot prove factual accuracy.
-No provider or worker is configured by this module.
+Production provider execution and durable dispatch live in services.ai.
 """
 
 from datetime import date
@@ -10,7 +10,7 @@ from typing import Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.schemas.phase2 import ExecutionBudget
+from app.schemas.phase2 import AIMetadata, ExecutionBudget
 
 
 class ProductSnapshot(BaseModel):
@@ -43,9 +43,11 @@ class EvidenceSnapshot(BaseModel):
 class MarketInput(BaseModel):
     schema_version: Literal["1.0"] = "1.0"
     product: ProductSnapshot
-    competitors: list[EvidenceSnapshot] = Field(min_length=1, max_length=20)
+    competitors: list[EvidenceSnapshot] = Field(default_factory=list, max_length=20)
     language: Literal["en", "bn"]
     budget: ExecutionBudget = Field(default_factory=ExecutionBudget)
+    comparison_date: date | None = None
+    max_evidence_age_days: int = Field(default=90, ge=1, le=365)
 
 
 class MarketResult(BaseModel):
@@ -58,6 +60,8 @@ class MarketResult(BaseModel):
     competitive_weaknesses: list[str] = Field(max_length=20)
     marketing_recommendations: list[str] = Field(max_length=20)
     limitations: list[str] = Field(min_length=1, max_length=20)
+    data_status: Literal["sufficient_data", "insufficient_data"] = "sufficient_data"
+    metadata: AIMetadata | None = None
 
 
 class MarketAnalyzer(Protocol):
@@ -67,25 +71,34 @@ class MarketAnalyzer(Protocol):
 
 
 def price_observations(data: MarketInput):
-    """Only compare prices sharing the product currency; no conversions."""
-    return [
-        {
+    """Compare only source-grounded, dated evidence with compatible declared units."""
+    from app.services.ai.market import evidence_issues, price_basis
+
+    result = []
+    for c in data.competitors:
+        issues = evidence_issues(data, c, data.max_evidence_age_days)
+        basis = price_basis(data, c) if not issues else None
+        row = {
             "evidence_id": c.id,
             "price": str(c.price) if c.price is not None else None,
             "currency": c.currency,
             "observed_at": c.observed_at.isoformat(),
             "comparison": (
                 "lower"
-                if c.price < data.product.price
+                if basis[1] < basis[0]
                 else "higher"
-                if c.price > data.product.price
+                if basis[1] > basis[0]
                 else "equal"
             )
-            if c.price is not None and c.currency == data.product.currency
+            if basis is not None
             else "not_comparable",
+            "comparison_basis": f"per {basis[2]}" if basis else None,
+            "seller_unit_price": str(basis[0].normalize()) if basis else None,
+            "competitor_unit_price": str(basis[1].normalize()) if basis else None,
+            "limitations": issues,
         }
-        for c in data.competitors
-    ]
+        result.append(row)
+    return result
 
 
 def process_market_analysis(

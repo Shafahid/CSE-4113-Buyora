@@ -13,8 +13,9 @@ from uuid import uuid4
 
 from sqlalchemy import or_, select
 
+from app.core.persona_diversity import normalized
 from app.models import PersonaEvaluation, Simulation, SimulationRun
-from app.schemas.execution import RULES_VERSION, Verdict
+from app.schemas.execution import PROMPT_VERSION, RULES_VERSION, Verdict
 from app.services.llm import (
     ModelFailure,
     evaluate_persona,
@@ -229,6 +230,21 @@ def save_attempt(factory, run_id, token, evaluation_id, output, metadata, error,
         row = db.get(PersonaEvaluation, evaluation_id)
         if not row:
             return
+        if output:
+            text = normalized(
+                output.get("comment", "") + " " + output.get("reason", "")
+            )
+            for other in evaluations(db, run_id):
+                previous = other.output or {}
+                if (
+                    other.id != row.id
+                    and len(text) >= 30
+                    and text
+                    == normalized(
+                        previous.get("comment", "") + " " + previous.get("reason", "")
+                    )
+                ):
+                    output = {**output, "repeated_language": True}
         row.output = output
         row.status = "completed" if output else "queued" if retry else "failed"
         row.error_code = error
@@ -325,7 +341,10 @@ async def execute_run(factory, settings, run_id, token, evaluator=None):
                 # Do not run a queued snapshot under a silently changed model.
                 if blocked:
                     raise ModelFailure(blocked)
-                if inputs.get("rules_version") != RULES_VERSION:
+                if (
+                    inputs.get("rules_version") != RULES_VERSION
+                    or inputs.get("prompt_version") != PROMPT_VERSION
+                ):
                     raise ModelFailure("configuration_changed")
                 expected = inputs.get("model_config", {})
                 if expected != {

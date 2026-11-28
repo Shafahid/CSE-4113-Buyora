@@ -1,5 +1,9 @@
 # Stage 1 — Shoma to Mehdi
 
+This is the historical Stage 1 baseline. The implemented adapters, durable queue,
+current migration and runtime limitations are recorded in
+[Stage 2 — Mehdi to Abu Bakar](02-mehdi-to-abu-bakar.md).
+
 Status: implementation baseline for review. No teammate acceptance is implied.
 Prepared: 2026-11-28. Contract version: 1.0. Target migration: 0017.
 
