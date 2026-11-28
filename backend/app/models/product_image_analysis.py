@@ -50,6 +50,7 @@ class ProductImageAnalysis(Base):
     language: Mapped[str] = mapped_column(Text, nullable=False, server_default="en")
     status: Mapped[str] = mapped_column(Text, nullable=False, server_default="pending")
     analysis_result: Mapped[dict | None] = mapped_column(JSON_TYPE)
+    processing_metadata: Mapped[dict | None] = mapped_column(JSON_TYPE)
     error_message: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()

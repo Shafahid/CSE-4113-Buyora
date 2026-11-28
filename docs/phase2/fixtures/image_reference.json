@@ -1,0 +1,10 @@
+{
+  "example_only": true,
+  "schema": "ImageResponse",
+  "payload": {
+    "id": 1,
+    "sort_order": 0,
+    "url": "https://example.com/private-example?token=example-only",
+    "image_revision": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  }
+}

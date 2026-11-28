@@ -172,6 +172,8 @@ async def execute_adaptation(factory, settings, job_id, token, inputs, evaluator
     task = asyncio.create_task(heartbeat())
     usage, error = {}, None
     try:
+        if inputs.get("persona_version") != PERSONA_VERSION:
+            raise ModelFailure("configuration_changed")
         if inputs.get("model_config") != {
             "model": model_identity(settings),
             "endpoint": settings.token_bd_api_url,

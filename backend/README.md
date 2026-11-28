@@ -398,6 +398,9 @@ processes can safely compete for jobs, while each job respects
 `SIMULATION_CONCURRENCY`. Apply migration 0011 before running this version.
 Detailed operations, recovery behavior and report verification are documented
 in [Simulation jobs, reports, and recovery](docs/simulation-reports.md).
+For queue database warnings, run `uv run python scripts/check_simulation_setup.py`
+to verify connectivity, worker tables/columns and pending repository migrations
+without printing credentials or reading job payloads.
 
 ### Report history and comparison
 
@@ -415,11 +418,11 @@ not call the model.
 
 ### AI persona engine and recommendations (revision 0010)
 
-The current catalog contains **11** built-in buyer perspectives. Selection
+The current catalog contains **30** built-in buyer perspectives. Selection
 supports 2 through the configured maximum, including custom profiles, and the
 execution layer validates Quick 5, Standard 10, Deep 20 and Extended 30 modes.
-Expanding the curated built-in catalog to cover the larger modes remains future
-persona-engine work. See [AI implementation and rubric](docs/ai-simulation.md)
+English, Bangla and explicit Banglish reactions are supported. See
+[AI implementation and rubric](docs/ai-simulation.md)
 for score definitions, fallback formulas, limits, API examples and test commands.
 
 Apply `uv run alembic upgrade head` before starting the updated worker. Revision
@@ -461,18 +464,13 @@ Databases already at `0011` need only the updated backend code and a restart.
 | **H. M. Mehedi Hasan** | [@Mehedi26696](https://github.com/Mehedi26696) | Persona/AI services, trust scoring, evaluator validation, fallback, recommendations and revision logic |
 | **Abu Bakar** | [@abs-Futy7](https://github.com/abs-Futy7) | Durable simulation/report backend, worker orchestration, retries/recovery, progress, safeguards, report APIs/comparison and B1–B4 integration verification |
 
-## Future backend work
+## Remaining backend work
 
-1. Expand realistic, diverse and dynamic personas across behavior, budget, age
-   and preference contexts.
-2. Add advanced analytics, segmentation, trust analysis, purchase-intention
+1. Add advanced analytics, segmentation, trust analysis, purchase-intention
    analysis and richer historical comparisons.
-3. Add AI product-image quality and promotional-presentation analysis.
-4. Add competitor pricing, promotion and market-trend analysis using properly
-   sourced external data.
-5. Add platform-specific optimization for Facebook, Instagram, TikTok and
-   WhatsApp.
-6. Add Docker, GitHub Actions CI/CD, cloud deployment, monitoring, backups and
+2. Broaden verified vision-provider coverage beyond the pinned Gemini model.
+3. Add sourced external market research if the project scope later requires it.
+4. Add Docker, GitHub Actions CI/CD, cloud deployment, monitoring, backups and
    production cost/security controls.
 
 See the [root Phase 1 README](../README.md) for the complete product overview,
@@ -503,12 +501,30 @@ before running it; it deletes eligible objects from that environment's bucket.
 
 ## Recovery of previously pending AI requests
 
-Image-analysis and platform-generation requests now return `503` without saving a
-new pending record when durable processing is unavailable. Previously saved
-pending records are not changed automatically and remain available through the
-existing history endpoints. After a worker and its transactional admission
-integration are connected, the team should review those records and explicitly
-requeue eligible work or mark it failed through an approved recovery procedure.
-Do not enable acceptance based only on a provider callable or configuration flag.
-The integration must verify a healthy worker and persist dispatch in the same
-database transaction as the request, with recovery for interrupted work.
+The Stage 1 contract, provenance fields, optional report attachments and shared
+AI request/token limits are documented in the
+[Phase 2 handover package](../docs/phase2/handoffs/01-shoma-to-mehdi.md).
+Apply revision 0018 before running this code. Generate contract artifacts with
+`uv run python scripts/export_phase2_contract.py`; verify fixtures with
+`uv run pytest -q tests/test_phase2_contract.py`.
+
+Stage 2 connects durable optional-AI processing for image, market and platform
+requests. Admission needs a fresh matching capable worker heartbeat; otherwise
+it returns `503` without saving pending work. Embedded workers run by default;
+set `SIMULATION_WORKER_ENABLED=false` in the API when using `python worker.py`
+separately. `PHASE2_AI_ENABLED=false` disables optional admission/processing.
+
+Run `uv run python scripts/check_stage2_setup.py --provider` to inspect schema,
+heartbeat and unbilled model/budget readiness. Image analysis uses
+`TOKEN_BD_VISION_MODEL=google/gemini-3.8-flash`; its live test passed through private
+Supabase storage and the normal adapter. A pinned policy bounds full UTF-8 prompt
+size plus 8192 image tokens and 1024 framing tokens, independent of the gateway's
+estimated counter. Other models still require native counting. Restart API/worker
+after changing `.env`. Market/platform failures support explicitly labeled fallback.
+
+Previously saved pending rows without a dispatch are not automatically replayed
+or charged. Review and explicitly recover them if needed. New jobs use saved
+snapshots, token reservations, leases and crash recovery without reissuing unknown
+paid calls. Read [Stage 2 AI outputs](../docs/phase2/AI_OUTPUTS.md) and
+[Mehdi's handoff](../docs/phase2/handoffs/02-mehdi-to-abu-bakar.md) for contracts,
+sample outputs, model versions, limitations and verification.

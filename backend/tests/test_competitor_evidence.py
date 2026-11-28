@@ -18,6 +18,41 @@ def sample(**values):
     } | values
 
 
+def test_provenance_round_trip_and_validation(client):
+    client, _ = client
+    login_as(client, "sources@example.com")
+    created = client.post(
+        "/competitor-evidence",
+        json=sample(
+            source_url="https://example.com/listing",
+            source_note=" Offline price check ",
+        ),
+        headers=ORIGIN,
+    )
+    assert created.status_code == 201
+    item = created.json()
+    assert item["source_note"] == "Offline price check"
+    path = f"/competitor-evidence/{item['id']}"
+    assert client.get(path).json()["source_url"] == "https://example.com/listing"
+    for url in (
+        "javascript:alert(1)",
+        "https://user:password@example.com/item",
+        "file:///item",
+    ):
+        assert (
+            client.post(
+                "/competitor-evidence", json=sample(source_url=url), headers=ORIGIN
+            ).status_code
+            == 422
+        )
+        assert (
+            client.patch(path, json={"source_url": url}, headers=ORIGIN).status_code
+            == 422
+        )
+    cleared = client.patch(path, json={"source_url": None}, headers=ORIGIN)
+    assert cleared.status_code == 200 and cleared.json()["source_url"] is None
+
+
 def test_crud_filters_and_soft_delete(client):
     client, engine = client
     assert client.get("/competitor-evidence").status_code == 401

@@ -1,7 +1,7 @@
 from datetime import UTC, datetime
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import func, select
 
@@ -11,6 +11,8 @@ from app.db.session import DbSession
 from app.models.auth import User
 from app.models.platform_variant import PlatformVariant, PlatformVariantRevision
 from app.models.post import PostVersion
+from app.schemas.phase2 import AIMetadata
+from app.services.ai_limits import lock_ai_seller, reserve_ai_request
 from app.services.platform_content import Platform, VariantContent
 from app.services.processing_admission import (
     DurableProcessingAdmission,
@@ -37,12 +39,13 @@ class RevisionResponse(VariantContent):
     id: int
     variant_id: int
     revision_number: int
-    origin: Literal["seller", "ai"]
+    origin: Literal["seller", "ai", "fallback"]
     created_at: datetime
 
 
 class VariantResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
+    schema_version: Literal["1.0"] = "1.0"
     id: int
     source_version_id: int
     platform: Platform
@@ -54,6 +57,7 @@ class VariantResponse(BaseModel):
     updated_at: datetime
     processing_available: bool = False
     latest_revision: RevisionResponse | None = None
+    processing_metadata: AIMetadata | None = None
 
 
 class VariantList(BaseModel):
@@ -101,6 +105,7 @@ def response(db, variant, processing_available=False):
 def create_variant(
     post_id: int,
     data: VariantCreate,
+    request: Request,
     user: CurrentUser,
     db: DbSession,
     _: Csrf,
@@ -108,6 +113,7 @@ def create_variant(
         DurableProcessingAdmission | None, Depends(get_processing_admission)
     ],
 ):
+    lock_ai_seller(db, user.id)
     owned_post(post_id, user, db, lock=True)
     source = db.scalar(
         select(PostVersion).where(
@@ -140,8 +146,31 @@ def create_variant(
                 )
             )
         else:
+            reserve_ai_request(
+                db,
+                user.id,
+                "platform_generation",
+                variant.id,
+                request.app.state.settings,
+                {
+                    "post": {
+                        key: getattr(source, key)
+                        for key in (
+                            "headline",
+                            "body",
+                            "offer",
+                            "call_to_action",
+                            "hashtags",
+                        )
+                    },
+                    "preferences": data.preferences,
+                },
+            )
             admission.enqueue(db, "platform_generation", variant.id)
         db.commit()
+    except HTTPException:
+        db.rollback()
+        raise
     except Exception:
         db.rollback()
         if data.content is None:

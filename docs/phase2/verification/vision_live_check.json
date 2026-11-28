@@ -1,0 +1,46 @@
+{
+  "checked_at": "2026-11-28T11:06:50.045845+00:00",
+  "configured_model": "deepseek-ai/deepseek-v4.1-flash-1017",
+  "scope": "One diagnostic synthetic-image request; production vision gate unchanged.",
+  "image_dimensions": [
+    192,
+    96
+  ],
+  "image_bytes": 505,
+  "expected_objects": [
+    {
+      "color": "blue",
+      "shape": "square",
+      "position": "left"
+    },
+    {
+      "color": "green",
+      "shape": "circle",
+      "position": "right"
+    }
+  ],
+  "max_output_tokens": 256,
+  "max_attempts": 1,
+  "request_attempts": 1,
+  "successful_generation_responses": 0,
+  "production_ready": false,
+  "image_reading_verified": false,
+  "failure_code": "provider_unavailable",
+  "latency_ms": 6061,
+  "unbilled_preflight": {
+    "catalog_failure_code": "provider_unavailable",
+    "token_count_failure_code": "provider_unavailable",
+    "model_accessible": true,
+    "input_modalities": null,
+    "image_capability": null,
+    "catalog_recheck_succeeded": true,
+    "input_token_count": 1610,
+    "token_count_estimated": true,
+    "count_recheck_succeeded": true
+  },
+  "billing_outcome": "Unknown for the attempted inference; no successful usage response received.",
+  "regression_tests": {
+    "command": "pytest -q tests/test_stage2_ai.py tests/test_stage2_jobs.py",
+    "passed": 29
+  }
+}

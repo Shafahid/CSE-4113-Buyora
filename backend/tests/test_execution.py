@@ -236,6 +236,14 @@ def test_named_modes_process_5_10_20_and_30_persona_workloads(execution):
     assert {item["id"]: item["persona_count"] for item in options["modes"]} == (
         MODE_COUNTS
     )
+
+    async def metered(_, inputs, profile):
+        return verdict(), {
+            "input_tokens": 100,
+            "output_tokens": 80,
+            "latency_ms": 25,
+        }
+
     for mode, count in MODE_COUNTS.items():
         run = start(
             client,
@@ -248,13 +256,19 @@ def test_named_modes_process_5_10_20_and_30_persona_workloads(execution):
         )
         assert run["stage"] == "queued"
         assert run["expected_personas"] == run["total"] == run["queued"] == count
-        process(factory, settings)
+        process(factory, settings, metered)
         result = client.get(f"/simulation-runs/{run['id']}").json()
         assert result["status"] == "completed"
         assert result["stage"] == "report_ready"
         assert result["completed"] == result["processed"] == count
         assert result["processing_percent"] == 100
         assert result["report"]["mode"] == mode
+        usage = result["report"]["usage"]
+        assert usage["modelCalls"] == count
+        assert usage["inputTokens"] == count * 100
+        assert usage["outputTokens"] == count * 80
+        assert usage["latencyMs"] == count * 25
+        assert all(len(row["output"]["scores"]) == 7 for row in result["evaluations"])
         assert client.get(f"/reports/{run['id']}").status_code == 200
         history = client.get("/reports", params={"mode": mode}).json()
         assert history["total"] == 1 and history["items"][0]["id"] == run["id"]

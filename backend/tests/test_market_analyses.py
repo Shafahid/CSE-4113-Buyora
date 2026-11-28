@@ -4,6 +4,7 @@ from runpy import run_path
 import pytest
 from alembic import command
 from alembic.config import Config
+from processing_fakes import FakeProcessingAdmission
 from sqlalchemy import select
 from sqlalchemy.orm import sessionmaker
 from test_products import ORIGIN, login_as
@@ -12,6 +13,7 @@ from test_products import client as product_client
 from app.core.config import BACKEND_DIR
 from app.models.market_analysis import MarketAnalysis
 from app.services.market_analysis import process_market_analysis
+from app.services.processing_admission import get_processing_admission
 
 client = product_client
 
@@ -44,7 +46,11 @@ def test_unavailable_and_snapshot_history(client):
     client, _ = client
     login_as(client, "one@example.com")
     product = create_product(client)
-    competitor = evidence(client)
+    competitor = evidence(
+        client,
+        source_url="https://example.com/original",
+        source_note="Seller's manual observation",
+    )
     other_product = create_product(client, "Other")
     foreign_product_link = evidence(client, product_id=other_product, currency="USD")
     path = f"/products/{product}/market-analyses"
@@ -52,21 +58,25 @@ def test_unavailable_and_snapshot_history(client):
     assert client.post(path, json=data, headers=ORIGIN).status_code == 503
     assert client.get(path).json()["total"] == 0
     # Simulate installation of a future durable worker, not an AI provider.
-    client.app.state.market_analysis_processing_available = True
+    client.app.dependency_overrides[get_processing_admission] = FakeProcessingAdmission
     created = client.post(path, json=data, headers=ORIGIN)
     assert created.status_code == 202
     item = created.json()
     assert item["status"] == "pending" and item["analysis_result"] is None
     assert item["input_snapshot"]["product"]["price"] == "1000.00"
     assert item["input_snapshot"]["competitors"][0]["observed_at"] == "2025-01-01"
+    assert (
+        item["input_snapshot"]["competitors"][0]["source_url"]
+        == "https://example.com/original"
+    )
     assert [x["comparison"] for x in item["price_observations"]] == [
-        "lower",
+        "not_comparable",
         "not_comparable",
     ]
     client.patch(f"/products/{product}", json={"name": "Changed"}, headers=ORIGIN)
     client.patch(
         f"/competitor-evidence/{competitor}",
-        json={"competitor_name": "Changed"},
+        json={"competitor_name": "Changed", "source_url": "https://example.com/new"},
         headers=ORIGIN,
     )
     client.delete(f"/competitor-evidence/{foreign_product_link}", headers=ORIGIN)
@@ -131,7 +141,7 @@ def test_mock_processing_valid_invalid_and_grounding(client):
     login_as(client, "one@example.com")
     product = create_product(client)
     competitor = evidence(client)
-    client.app.state.market_analysis_processing_available = True
+    client.app.dependency_overrides[get_processing_admission] = FakeProcessingAdmission
     path = f"/products/{product}/market-analyses"
 
     def create():
@@ -196,7 +206,7 @@ def test_missing_price_is_json_null(client):
     login_as(client, "seller@example.com")
     product = create_product(client)
     competitor = evidence(client, price=None, currency=None)
-    client.app.state.market_analysis_processing_available = True
+    client.app.dependency_overrides[get_processing_admission] = FakeProcessingAdmission
     response = client.post(
         f"/products/{product}/market-analyses",
         json={"competitor_evidence_ids": [competitor]},

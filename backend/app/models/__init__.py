@@ -1,4 +1,6 @@
 from app.db.base import Base
+from app.models.ai_job import AIJob, AIWorkerHeartbeat
+from app.models.ai_request import AIRequestReservation
 from app.models.auth import AuthSession, User, UserProfile
 from app.models.competitor_evidence import CompetitorEvidence
 from app.models.market_analysis import MarketAnalysis
@@ -14,6 +16,9 @@ from app.models.simulation_run import PersonaEvaluation, SimulationCache, Simula
 from app.models.storage_cleanup import StorageCleanupTask
 
 __all__ = [
+    "AIJob",
+    "AIWorkerHeartbeat",
+    "AIRequestReservation",
     "AuthSession",
     "CompetitorEvidence",
     "MarketAnalysis",

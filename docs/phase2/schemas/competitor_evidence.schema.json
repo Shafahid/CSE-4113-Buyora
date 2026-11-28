@@ -1,0 +1,219 @@
+{
+  "additionalProperties": false,
+  "examples": [
+    {
+      "category": "Electronics",
+      "competitor_description": "Rechargeable mouse with quiet clicks.",
+      "competitor_name": "TechZone BD",
+      "created_at": "2025-11-20T12:00:00Z",
+      "currency": "BDT",
+      "deleted_at": null,
+      "id": 1,
+      "notes": "Price observed on the seller's post.",
+      "observed_at": "2025-11-20",
+      "offer": "10% discount on two items",
+      "platform": "facebook",
+      "price": "950.00",
+      "product_id": null,
+      "product_name": "Wireless Mouse",
+      "seller_id": 1,
+      "updated_at": "2025-11-20T12:00:00Z"
+    }
+  ],
+  "properties": {
+    "product_id": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Product Id"
+    },
+    "competitor_name": {
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Competitor Name",
+      "type": "string"
+    },
+    "product_name": {
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Product Name",
+      "type": "string"
+    },
+    "competitor_description": {
+      "anyOf": [
+        {
+          "maxLength": 5000,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Competitor Description"
+    },
+    "category": {
+      "anyOf": [
+        {
+          "maxLength": 200,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Category"
+    },
+    "price": {
+      "anyOf": [
+        {
+          "minimum": 0.0,
+          "type": "number"
+        },
+        {
+          "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,10}|(?=[\\d.]{1,13}0*$)\\d{0,10}\\.\\d{0,2}0*$)",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Price"
+    },
+    "currency": {
+      "anyOf": [
+        {
+          "pattern": "^[A-Z]{3}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Currency"
+    },
+    "offer": {
+      "anyOf": [
+        {
+          "maxLength": 1000,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Offer"
+    },
+    "platform": {
+      "anyOf": [
+        {
+          "maxLength": 200,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Platform"
+    },
+    "source_url": {
+      "anyOf": [
+        {
+          "maxLength": 2000,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Source Url"
+    },
+    "source_note": {
+      "anyOf": [
+        {
+          "maxLength": 2000,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Source Note"
+    },
+    "observed_at": {
+      "format": "date",
+      "title": "Observed At",
+      "type": "string"
+    },
+    "notes": {
+      "anyOf": [
+        {
+          "maxLength": 5000,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Notes"
+    },
+    "id": {
+      "title": "Id",
+      "type": "integer"
+    },
+    "seller_id": {
+      "title": "Seller Id",
+      "type": "integer"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "updated_at": {
+      "format": "date-time",
+      "title": "Updated At",
+      "type": "string"
+    },
+    "deleted_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Deleted At"
+    }
+  },
+  "required": [
+    "competitor_name",
+    "product_name",
+    "observed_at",
+    "id",
+    "seller_id",
+    "created_at",
+    "updated_at",
+    "deleted_at"
+  ],
+  "title": "EvidenceResponse",
+  "type": "object"
+}

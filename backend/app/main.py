@@ -20,6 +20,7 @@ from app.api.routes.products import router as products_router
 from app.api.routes.simulations import router as simulations_router
 from app.core.config import Settings
 from app.db.session import create_db_engine
+from app.services.ai.jobs import worker_loop as optional_worker_loop
 from app.services.simulation_worker import worker_loop
 
 
@@ -34,15 +35,24 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             bind=engine, expire_on_commit=False
         )
         worker = None
+        optional_worker = None
         # The worker also processes deterministic fallback-only runs, so an API
         # key is not a prerequisite for starting it.
         if settings.simulation_worker_enabled:
             worker = asyncio.create_task(
                 worker_loop(application.state.session_factory, settings)
             )
+            if settings.phase2_ai_enabled:
+                optional_worker = asyncio.create_task(
+                    optional_worker_loop(application.state.session_factory, settings)
+                )
         try:
             yield
         finally:
+            if optional_worker:
+                optional_worker.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await optional_worker
             if worker:
                 worker.cancel()
                 with contextlib.suppress(asyncio.CancelledError):
@@ -67,6 +77,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         allow_credentials=True,
         allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
         allow_headers=["Authorization", "Content-Type"],
+        expose_headers=["Retry-After"],
     )
     application.include_router(api_router)
 
@@ -106,6 +117,20 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 responses.setdefault(
                     "404", {"description": "Resource missing or inaccessible"}
                 )
+                if method == "post" and (
+                    path.endswith("/analyses")
+                    or path.endswith("/market-analyses")
+                    or path.endswith("/variants")
+                ):
+                    responses["429"] = {
+                        "description": "AI rate or daily token budget exceeded",
+                        "headers": {"Retry-After": {"schema": {"type": "integer"}}},
+                        "content": {
+                            "application/json": {
+                                "example": {"detail": "AI request rate limit reached"}
+                            }
+                        },
+                    }
                 if method in {"post", "put", "patch", "delete"}:
                     responses.setdefault(
                         "403", {"description": "Origin is not trusted"}

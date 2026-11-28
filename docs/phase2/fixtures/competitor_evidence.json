@@ -1,0 +1,24 @@
+{
+  "example_only": true,
+  "schema": "EvidenceResponse",
+  "payload": {
+    "product_id": 1,
+    "competitor_name": "Example Store",
+    "product_name": "Canvas bag",
+    "competitor_description": null,
+    "category": "Accessories",
+    "price": "125.00",
+    "currency": "BDT",
+    "offer": null,
+    "platform": "facebook",
+    "source_url": "https://example.com/listing",
+    "source_note": "Seller-entered example; not independently verified",
+    "observed_at": "2026-11-28",
+    "notes": null,
+    "id": 1,
+    "seller_id": 1,
+    "created_at": "2026-11-28T06:00:00Z",
+    "updated_at": "2026-11-28T06:00:00Z",
+    "deleted_at": null
+  }
+}

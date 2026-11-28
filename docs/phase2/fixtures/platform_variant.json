@@ -1,0 +1,20 @@
+{
+  "example_only": true,
+  "schema": "PlatformGenerationResult",
+  "payload": {
+    "schema_version": "1.0",
+    "content": {
+      "headline": "Everyday canvas bag",
+      "body": "Example caption: BDT 120.",
+      "offer": null,
+      "call_to_action": "Message us for details",
+      "hashtags": [
+        "example"
+      ]
+    },
+    "warnings": [
+      "Example only; no provider was called."
+    ],
+    "metadata": null
+  }
+}

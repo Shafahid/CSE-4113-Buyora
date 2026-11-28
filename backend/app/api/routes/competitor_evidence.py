@@ -1,6 +1,7 @@
 from datetime import UTC, date, datetime
 from decimal import Decimal
 from typing import Annotated
+from urllib.parse import urlsplit
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, Response
 from pydantic import (
@@ -58,8 +59,28 @@ class EvidenceFields(BaseModel):
     currency: str | None = Field(default=None, pattern=r"^[A-Z]{3}$")
     offer: str | None = Field(default=None, max_length=1000)
     platform: str | None = Field(default=None, max_length=200)
+    source_url: str | None = Field(default=None, max_length=2000)
+    source_note: str | None = Field(default=None, min_length=1, max_length=2000)
     observed_at: date
     notes: str | None = Field(default=None, max_length=5000)
+
+    @field_validator("source_url")
+    @classmethod
+    def public_source_reference(cls, value):
+        if value is not None:
+            try:
+                url = urlsplit(value)
+                valid = (
+                    url.scheme in {"http", "https"}
+                    and url.hostname
+                    and not url.username
+                    and not url.password
+                )
+            except ValueError:
+                valid = False
+            if not valid:
+                raise ValueError("Source must be an HTTP(S) URL without credentials")
+        return value
 
     @field_validator("observed_at")
     @classmethod
@@ -100,6 +121,8 @@ class EvidencePatch(BaseModel):
     currency: str | None = Field(default=None, pattern=r"^[A-Z]{3}$")
     offer: str | None = Field(default=None, max_length=1000)
     platform: str | None = Field(default=None, max_length=200)
+    source_url: str | None = Field(default=None, max_length=2000)
+    source_note: str | None = Field(default=None, min_length=1, max_length=2000)
     observed_at: date | None = None
     notes: str | None = Field(default=None, max_length=5000)
 

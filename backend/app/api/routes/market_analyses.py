@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -11,12 +11,18 @@ from app.db.session import DbSession
 from app.models.auth import User
 from app.models.competitor_evidence import CompetitorEvidence
 from app.models.market_analysis import MarketAnalysis
+from app.schemas.phase2 import AIMetadata, ExecutionBudget
+from app.services.ai_limits import lock_ai_seller, reserve_ai_request
 from app.services.market_analysis import (
     EvidenceSnapshot,
     MarketInput,
     MarketResult,
     ProductSnapshot,
     price_observations,
+)
+from app.services.processing_admission import (
+    DurableProcessingAdmission,
+    get_processing_admission,
 )
 
 router = APIRouter(tags=["market analyses"])
@@ -44,6 +50,7 @@ class MarketRequest(BaseModel):
 
 class MarketResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
+    schema_version: Literal["1.0"] = "1.0"
     id: int
     product_id: int
     status: Literal["pending", "processing", "completed", "failed"]
@@ -59,10 +66,13 @@ class MarketResponse(BaseModel):
         "Competitor information is seller-provided and not independently verified."
     )
     interpretations_require_review: bool = True
+    processing_metadata: AIMetadata | None = None
 
 
 def render(row):
     snapshot = MarketInput.model_validate(row.input_snapshot)
+    if snapshot.comparison_date is None:
+        snapshot.comparison_date = row.created_at.date()
     return MarketResponse.model_validate(
         {
             "id": row.id,
@@ -76,6 +86,7 @@ def render(row):
             "updated_at": row.updated_at,
             "completed_at": row.completed_at,
             "price_observations": price_observations(snapshot),
+            "processing_metadata": row.processing_metadata,
         }
     )
 
@@ -99,7 +110,11 @@ def create_analysis(
     user: CurrentUser,
     db: DbSession,
     _: Csrf,
+    admission: Annotated[
+        DurableProcessingAdmission | None, Depends(get_processing_admission)
+    ],
 ):
+    lock_ai_seller(db, user.id)
     product = owned_product(product_id, user, db)
     records = db.scalars(
         select(CompetitorEvidence).where(
@@ -112,7 +127,7 @@ def create_analysis(
     if len(by_id) != len(data.competitor_evidence_ids):
         raise HTTPException(404, "Competitor evidence not found")
     # A worker must be explicitly installed before accepting durable work.
-    if not getattr(request.app.state, "market_analysis_processing_available", False):
+    if not isinstance(admission, DurableProcessingAdmission):
         raise HTTPException(503, "Market analysis service is not configured")
     snapshot = MarketInput(
         product=ProductSnapshot.model_validate(product, from_attributes=True),
@@ -121,6 +136,8 @@ def create_analysis(
             for i in data.competitor_evidence_ids
         ],
         language=data.language,
+        comparison_date=datetime.now(UTC).date(),
+        max_evidence_age_days=request.app.state.settings.market_evidence_max_age_days,
     )
     analysis = MarketAnalysis(
         product_id=product.id,
@@ -129,8 +146,28 @@ def create_analysis(
         status="pending",
         input_snapshot=snapshot.model_dump(mode="json"),
     )
-    db.add(analysis)
-    db.commit()
+    try:
+        admission.verify_ready(db, "market_analysis")
+        db.add(analysis)
+        db.flush()
+        reservation = reserve_ai_request(
+            db,
+            user.id,
+            "market_analysis",
+            analysis.id,
+            request.app.state.settings,
+            snapshot.model_dump(mode="json"),
+        )
+        snapshot.budget = ExecutionBudget.model_validate(reservation.policy)
+        analysis.input_snapshot = snapshot.model_dump(mode="json")
+        admission.enqueue(db, "market_analysis", analysis.id)
+        db.commit()
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception:
+        db.rollback()
+        raise HTTPException(503, "Market analysis service is not configured") from None
     db.refresh(analysis)
     return render(analysis)
 

@@ -1,18 +1,23 @@
-"""Typed interface for a future image analysis provider; no provider is configured."""
+"""Provider-neutral image contract; production dispatch lives in services.ai.jobs."""
 
 from typing import Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field
+
+from app.schemas.phase2 import AIMetadata, ExecutionBudget
 
 
 class ImageFinding(BaseModel):
     model_config = ConfigDict(extra="forbid")
     assessment: Literal["good", "needs_improvement", "not_applicable", "uncertain"]
     feedback: str | None = Field(max_length=2000)
+    severity: Literal["none", "minor", "major", "uncertain"] = "uncertain"
+    observation: str | None = Field(default=None, max_length=2000)
 
 
 class ImageAnalysisResult(BaseModel):
     model_config = ConfigDict(extra="forbid")
+    schema_version: Literal["1.0"] = "1.0"
     clarity: ImageFinding
     lighting: ImageFinding
     composition: ImageFinding
@@ -20,14 +25,17 @@ class ImageAnalysisResult(BaseModel):
     text_readability: ImageFinding
     product_consistency: ImageFinding
     suggestions: list[str] = Field(max_length=20)
+    metadata: AIMetadata | None = None
 
 
 class ImageAnalysisInput(BaseModel):
+    schema_version: Literal["1.0"] = "1.0"
     product_id: int
     image_id: int
     product_details: dict
     image_url: str
     language: Literal["en", "bn"]
+    budget: ExecutionBudget = Field(default_factory=ExecutionBudget)
 
 
 class ImageAnalyzer(Protocol):
@@ -39,10 +47,10 @@ class ImageAnalyzer(Protocol):
 def process_image_analysis(
     session_factory, analysis_id: int, analyzer: ImageAnalyzer, storage
 ):
-    """Integration hook for a future durable worker; never runs in API requests.
+    """Legacy direct integration hook; never runs in API requests.
 
     Atomically claim once, then release the transaction before storage/provider calls.
-    A future worker must add lease recovery and bounded cost controls before use.
+    Production uses services.ai.jobs for leases, recovery and bounded calls.
     """
     from datetime import UTC, datetime
 
@@ -92,6 +100,9 @@ def process_image_analysis(
                 },
                 "language": analysis.language,
             }
+            from app.services.ai_limits import request_budget
+
+            data["budget"] = request_budget(db, "image_analysis", analysis_id)
         data["image_url"] = storage.signed_url(key)
         output = ImageAnalysisResult.model_validate(
             analyzer.analyze(ImageAnalysisInput(**data))

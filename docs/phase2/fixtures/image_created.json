@@ -1,0 +1,9 @@
+{
+  "example_only": true,
+  "schema": "ImageCreated",
+  "payload": {
+    "id": 1,
+    "product_id": 1,
+    "sort_order": 0
+  }
+}

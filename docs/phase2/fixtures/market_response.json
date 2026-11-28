@@ -1,0 +1,87 @@
+{
+  "example_only": true,
+  "schema": "MarketResponse",
+  "payload": {
+    "schema_version": "1.0",
+    "id": 1,
+    "product_id": 1,
+    "status": "completed",
+    "language": "en",
+    "input_snapshot": {
+      "schema_version": "1.0",
+      "product": {
+        "id": 1,
+        "name": "Canvas bag",
+        "category": "Accessories",
+        "price": "120.00",
+        "currency": "BDT",
+        "description": null,
+        "features": []
+      },
+      "competitors": [
+        {
+          "id": 1,
+          "product_id": 1,
+          "competitor_name": "Example Store",
+          "product_name": "Canvas bag",
+          "competitor_description": null,
+          "category": "Accessories",
+          "price": "125.00",
+          "currency": "BDT",
+          "offer": null,
+          "platform": "facebook",
+          "observed_at": "2026-11-28",
+          "notes": null,
+          "source_url": "https://example.com/listing",
+          "source_note": "Seller-entered example; not independently verified"
+        }
+      ],
+      "language": "en",
+      "budget": {
+        "max_input_tokens": 16384,
+        "max_output_tokens": 4096,
+        "max_attempts": 1,
+        "timeout_seconds": 90
+      },
+      "comparison_date": null,
+      "max_evidence_age_days": 90
+    },
+    "analysis_result": {
+      "schema_version": "1.0",
+      "feature_comparison": "Example only: compare seller-supplied descriptions.",
+      "offer_comparison": "No offers were supplied.",
+      "competitive_strengths": [],
+      "competitive_weaknesses": [],
+      "marketing_recommendations": [
+        "Show the bag dimensions."
+      ],
+      "limitations": [
+        "Example data; no live market research was performed."
+      ],
+      "data_status": "sufficient_data",
+      "metadata": null
+    },
+    "error_message": null,
+    "created_at": "2026-11-28T06:00:00Z",
+    "updated_at": "2026-11-28T06:00:00Z",
+    "completed_at": "2026-11-28T06:00:00Z",
+    "price_observations": [
+      {
+        "evidence_id": 1,
+        "price": "125.00",
+        "currency": "BDT",
+        "observed_at": "2026-11-28",
+        "comparison": "not_comparable",
+        "comparison_basis": null,
+        "seller_unit_price": null,
+        "competitor_unit_price": null,
+        "limitations": [
+          "not_comparable"
+        ]
+      }
+    ],
+    "evidence_notice": "Competitor information is seller-provided and not independently verified.",
+    "interpretations_require_review": true,
+    "processing_metadata": null
+  }
+}

@@ -55,11 +55,11 @@ def inputs(language="en", body="Canvas bag. Price BDT 120."):
 
 
 @pytest.mark.parametrize("language", ["en", "bn"])
-def test_all_eleven_profiles_are_distinct_contextual_and_editable(language):
+def test_all_thirty_profiles_are_distinct_contextual_and_editable(language):
     original = inputs(language)
     before = copy.deepcopy(original)
     result = contextual_profiles(original)
-    assert len(result) == 11 and not duplicate_perspectives(result)
+    assert len(result) == 30 and not duplicate_perspectives(result)
     assert original == before
     assert {p["id"] for p in result} == {p.id for p in profiles()}
     assert all(
@@ -254,6 +254,7 @@ def test_evaluator_rejects_incomplete_ungrounded_or_wrong_language_output(
         "fallback_reason",
         "prompt_version",
         "rules_version",
+        "repeated_language",
     ):
         value.pop(key)
     if invalid == "missing_drivers":
@@ -281,6 +282,7 @@ def test_evaluator_requests_complete_drivers_and_normalizes_their_order(
         "fallback_reason",
         "prompt_version",
         "rules_version",
+        "repeated_language",
     ):
         value.pop(key)
     value["score_drivers"].reverse()
@@ -336,6 +338,7 @@ def test_evaluator_restores_source_whitespace_and_offers_verbatim_quotes(
         "fallback_reason",
         "prompt_version",
         "rules_version",
+        "repeated_language",
     ):
         value.pop(key)
     value["evidence"] = ["Canvas bag"]

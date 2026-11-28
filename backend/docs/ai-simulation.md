@@ -2,11 +2,13 @@
 
 ## Accepted scope and ownership
 
-The revised scope is **11 curated personas**, replacing the task plan's proposed
-30. IDs: `budget`, `cod`, `skeptic`, `office`, `gift`, `impulse`, `bargain`, `repeat`,
-`trend`, `genz`, `traditional`. Selected profiles alone are evaluated. Custom
-profiles remain supported within `SIMULATION_MAX_PERSONAS` (default 12, minimum
-selection 2). No claim of representative population sampling is made.
+Stage 2 provides **30 curated personas**, retaining the original 11 IDs and
+adding 19 buying-priority perspectives. Quick 5, Standard 10, Deep 20 and Extended
+30 modes use this catalog. Selected profiles alone are evaluated. Custom profiles
+remain supported within `SIMULATION_MAX_PERSONAS` (default 30, minimum selection
+2). No claim of representative population sampling is made. Optional image,
+market and platform adapters are documented in
+[Stage 2 AI outputs](../../docs/phase2/AI_OUTPUTS.md).
 
 The A1–A4 services are in `persona_engine.py`, `persona_diversity.py`,
 `trust_scoring.py`, `llm.py` and `report_insights.py`. `persona_jobs.py` and the
@@ -50,8 +52,8 @@ missing score explanations, invalid scores or the wrong script are rejected.
 
 Version constants:
 
-- Personas: `contextual-personas-v1`
-- Prompt: `buyer-evaluator-v2.1`
+- Personas: `contextual-personas-v2`
+- Prompt: `buyer-evaluator-v2.3`
 - Rules: `buyer-perspectives-v2`
 
 Change the relevant version whenever behavior changes. Old saved reports retain
@@ -215,7 +217,7 @@ From `backend/`:
 From `frontend/`: `npm test`, `npm run test:integration`, `npm run lint`,
 `npx tsc --noEmit` and `npm run build`. Integration tests start isolated SQLite
 and fake providers without reading `.env`. The live schema verifier is separate
-and reads backend settings. Unit/API checks cover 2, 5, 10 and all11 selected
+and reads backend settings. Unit/API checks cover 2, 5, 10, 20 and 30 selected
 profiles, repeatability, multilingual signals, evidence grounding, malformed
 responses, provider classifications, fallback, reservations, cached/fresh jobs,
 ownership, interruption and caption revision from immutable inputs.
