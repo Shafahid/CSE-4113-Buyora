@@ -9,6 +9,7 @@ from app.core.persona_diversity import duplicate_perspectives
 RULES_VERSION = "buyer-perspectives-v2"
 PROMPT_VERSION = "buyer-evaluator-v2.2"
 PERSONA_VERSION = "contextual-personas-v1"
+SIMULATION_MODES = {"quick": 5, "standard": 10, "deep": 20, "extended": 30}
 Score = Annotated[int, Field(ge=0, le=100, strict=True)]
 
 
@@ -35,7 +36,8 @@ class RunCreate(BaseModel):
     post_version_id: int = Field(gt=0, strict=True)
     language: Literal["en", "bn"] = "en"
     audience: dict[str, str] = Field(default_factory=dict)
-    personas: list[PersonaProfile] = Field(min_length=2, max_length=32)
+    personas: list[PersonaProfile] = Field(min_length=2, max_length=30)
+    mode: Literal["quick", "standard", "deep", "extended", "custom"] | None = None
     fresh: bool = False
 
     @field_validator("audience")
@@ -53,6 +55,11 @@ class RunCreate(BaseModel):
         if duplicate_perspectives([p.model_dump() for p in self.personas]):
             raise ValueError(
                 "Personas need distinct buying priorities, not just different names"
+            )
+        expected = SIMULATION_MODES.get(self.mode or "")
+        if expected is not None and len(self.personas) != expected:
+            raise ValueError(
+                f"{self.mode.title()} mode requires exactly {expected} personas"
             )
         return self
 
@@ -123,9 +130,15 @@ class RunProgress(BaseModel):
     id: str
     simulation_id: int
     status: str
+    stage: str
+    expected_personas: int
     total: int
     completed: int
     failed: int
+    queued: int
+    running: int
+    processed: int
+    processing_percent: int
     cache_hit: bool = False
     model: str
     created_at: datetime
@@ -158,9 +171,17 @@ class BulkRetryRequest(BaseModel):
     request_id: UUID
 
 
+class SimulationModeOption(BaseModel):
+    id: Literal["quick", "standard", "deep", "extended"]
+    label: str
+    persona_count: Literal[5, 10, 20, 30]
+
+
 class SimulationOptions(BaseModel):
     min_personas: int = 2
     max_personas: int
+    default_mode: Literal["standard"] = "standard"
+    modes: list[SimulationModeOption]
     profiles: list[PersonaProfile]
 
 
@@ -176,3 +197,57 @@ class RevisionRequest(BaseModel):
 
 class ReportChanges(RevisionRequest):
     revised: str = Field(max_length=30000)
+
+
+class ReportSummary(BaseModel):
+    id: str
+    title: str
+    status: Literal["completed", "partially_failed", "failed"]
+    mode: Literal["quick", "standard", "deep", "extended", "custom"]
+    persona_count: int
+    completed: int
+    failed: int
+    overall_score: float | None
+    dimension_scores: dict[str, float]
+    fallback_count: int
+    created_at: datetime
+    completed_at: datetime | None
+
+
+class ReportListResponse(BaseModel):
+    items: list[ReportSummary]
+    total: int
+    offset: int
+    limit: int
+
+
+class ReportCompareRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    report_ids: list[UUID] = Field(min_length=2, max_length=2)
+
+    @model_validator(mode="after")
+    def distinct_reports(self):
+        if self.report_ids[0] == self.report_ids[1]:
+            raise ValueError("Choose two different reports")
+        return self
+
+
+class ComparedReport(BaseModel):
+    id: str
+    title: str
+    persona_count: int
+    overall_score: float
+    created_at: datetime
+
+
+class DimensionComparison(BaseModel):
+    dimension: str
+    values: dict[str, float]
+    difference: float
+
+
+class ReportComparison(BaseModel):
+    reports: list[ComparedReport]
+    dimensions: list[DimensionComparison]
+    persona_count_difference: int
+    overall_score_difference: float

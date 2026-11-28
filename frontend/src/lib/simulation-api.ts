@@ -4,6 +4,16 @@ import type { Report } from "./demo-data";
 import { validReport } from "./persistence";
 
 export type SimulationRun = ApiSchemas["RunResponse"];
+export type ReportFilters = {
+  q?: string;
+  status?: "completed" | "partially_failed" | "failed";
+  mode?: "quick" | "standard" | "deep" | "extended" | "custom";
+  created_from?: string;
+  created_to?: string;
+  order?: "newest" | "oldest";
+  offset?: number;
+  limit?: number;
+};
 export const finishedRun = (run: SimulationRun) => ["completed", "partially_failed", "failed"].includes(run.status);
 export function reportFromRun(run: SimulationRun): Report | null {
   if (!run.report) return null;
@@ -20,6 +30,17 @@ export const simulationApi = {
   progress: (id: string, signal?: AbortSignal) => request<ApiSchemas["RunProgress"]>(`/simulation-runs/${id}/progress`, { signal }),
   preview: (data: ApiSchemas["RunPreview"], signal?: AbortSignal) => request<ApiSchemas["PreviewResponse"]>("/simulation-runs/preview", { method: "POST", ...jsonBody(data), signal }),
   retryFailed: (id: string, requestId: string) => request<SimulationRun>(`/simulation-runs/${id}/retry-failed`, { method: "POST", ...jsonBody({ request_id: requestId }) }),
+  reports: (filters: ReportFilters = {}) => {
+    const params = new URLSearchParams();
+    for (const [key, value] of Object.entries(filters)) {
+      if (value !== undefined) params.set(key, String(value));
+    }
+    const query = params.size ? `?${params}` : "";
+    return request<ApiSchemas["ReportListResponse"]>(`/reports${query}`);
+  },
+  report: (id: string) => request<SimulationRun>(`/reports/${id}`),
+  compareReports: (first: string, second: string) => request<ApiSchemas["ReportComparison"]>("/reports/compare", { method: "POST", ...jsonBody({ report_ids: [first, second] }) }),
+  removeReport: (id: string) => request<void>(`/reports/${id}`, { method: "DELETE" }),
   async runs() {
     const runs: SimulationRun[] = [];
     for (let offset = 0; ; offset += 100) {

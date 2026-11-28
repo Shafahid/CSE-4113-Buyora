@@ -75,7 +75,11 @@ def claim(factory):
                 ]
         token = str(uuid4())
         run.status = "running"
+<<<<<<< HEAD
         run.stage = "evaluating_personas"
+=======
+        run.stage = "evaluating"
+>>>>>>> 7c316b1109eba01b8e367b41828175e3b27b24e5
         run.started_at = run.started_at or now()
         run.updated_at = now()
         run.lease_token = token
@@ -233,6 +237,11 @@ def finalize(factory, run_id, token):
             "completed"
             if complete == len(rows)
             else ("partially_failed" if complete else "failed")
+        )
+        run.stage = (
+            "report_ready"
+            if complete == len(rows)
+            else ("report_ready_partial" if complete else "failed")
         )
         run.completed_at = now()
         run.stage = {
@@ -410,6 +419,9 @@ async def worker_loop(factory, settings):
                     await asyncio.to_thread(expire_lease, factory, *job)
             # No provider exceptions, SQL parameters, inputs or secrets in logs.
             if not warned:
+                # Some server/test logging configurations disable existing
+                # module loggers. Operational worker failures must remain visible.
+                logger.disabled = False
                 logger.warning(
                     "Simulation worker unavailable (%s) during %s. %s",
                     type(error).__name__,

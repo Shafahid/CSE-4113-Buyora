@@ -1,3 +1,5 @@
+from datetime import datetime
+from typing import Literal
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Query, Request, Response
@@ -18,6 +20,9 @@ from app.schemas.execution import (
     PersonaAdaptResponse,
     PreviewResponse,
     ReportChanges,
+    ReportCompareRequest,
+    ReportComparison,
+    ReportListResponse,
     RetryRequest,
     RevisionRequest,
     RunCreate,
@@ -33,6 +38,12 @@ from app.services.persona_jobs import (
     start_adaptation,
 )
 from app.services.report_insights import revised_caption
+from app.services.report_queries import (
+    compare_reports,
+    owned_report,
+    report_history,
+    report_summary,
+)
 from app.services.simulation_runs import (
     TERMINAL,
     can_retry,
@@ -147,8 +158,61 @@ def queue_retry(db, run):
 def options(request: Request, user: CurrentUser):
     return {
         "max_personas": request.app.state.settings.simulation_max_personas,
+        "default_mode": "standard",
+        "modes": [
+            {"id": "quick", "label": "Quick", "persona_count": 5},
+            {"id": "standard", "label": "Standard", "persona_count": 10},
+            {"id": "deep", "label": "Deep", "persona_count": 20},
+            {"id": "extended", "label": "Extended", "persona_count": 30},
+        ],
         "profiles": profiles(),
     }
+
+
+@router.get("/reports", response_model=ReportListResponse, tags=["reports"])
+def list_reports(
+    user: CurrentUser,
+    db: DbSession,
+    q: str | None = Query(default=None, min_length=1, max_length=200),
+    status: Literal["completed", "partially_failed", "failed"] | None = None,
+    mode: Literal["quick", "standard", "deep", "extended", "custom"] | None = None,
+    created_from: datetime | None = None,
+    created_to: datetime | None = None,
+    order: Literal["newest", "oldest"] = "newest",
+    offset: int = Query(default=0, ge=0),
+    limit: int = Query(default=50, ge=1, le=100),
+):
+    if created_from and created_to and created_from > created_to:
+        raise HTTPException(422, "created_from must not be after created_to")
+    runs = report_history(
+        db,
+        user.id,
+        query=q,
+        status=status,
+        mode=mode,
+        created_from=created_from,
+        created_to=created_to,
+        oldest_first=order == "oldest",
+    )
+    return {
+        "items": [report_summary(run) for run in runs[offset : offset + limit]],
+        "total": len(runs),
+        "offset": offset,
+        "limit": limit,
+    }
+
+
+@router.post("/reports/compare", response_model=ReportComparison, tags=["reports"])
+def compare_saved_reports(data: ReportCompareRequest, user: CurrentUser, db: DbSession):
+    runs = [owned_report(db, str(report_id), user.id) for report_id in data.report_ids]
+    if any(run.status != "completed" for run in runs):
+        raise HTTPException(409, "Only fully completed reports can be compared")
+    return compare_reports(runs)
+
+
+@router.get("/reports/{report_id}", response_model=RunResponse, tags=["reports"])
+def get_report(report_id: UUID, user: CurrentUser, db: DbSession):
+    return response(db, owned_report(db, str(report_id), user.id))
 
 
 @router.post("/simulation-runs", response_model=RunResponse, status_code=202)
@@ -267,11 +331,7 @@ def revise_report(
     return response(db, run)
 
 
-@router.delete("/simulation-runs/{run_id}", status_code=204)
-def delete_report(run_id: UUID, user: CurrentUser, db: DbSession, _: Csrf):
-    run = owned_run(db, str(run_id), user.id, lock=True)
-    if run.status not in TERMINAL:
-        raise HTTPException(409, "Wait for the simulation to finish before deleting it")
+def remove_report(db, run):
     # Explicit order also works in SQLite, which omits cross-schema FKs.
     simulation_id = run.simulation_id
     db.execute(delete(SimulationCache).where(SimulationCache.run_id == run.id))
@@ -285,4 +345,18 @@ def delete_report(run_id: UUID, user: CurrentUser, db: DbSession, _: Csrf):
     )
     db.delete(db.get(Simulation, simulation_id))
     db.commit()
+
+
+@router.delete("/reports/{report_id}", status_code=204, tags=["reports"])
+def delete_saved_report(report_id: UUID, user: CurrentUser, db: DbSession, _: Csrf):
+    remove_report(db, owned_report(db, str(report_id), user.id, lock=True))
+    return Response(status_code=204)
+
+
+@router.delete("/simulation-runs/{run_id}", status_code=204)
+def delete_report(run_id: UUID, user: CurrentUser, db: DbSession, _: Csrf):
+    run = owned_run(db, str(run_id), user.id, lock=True)
+    if run.status not in TERMINAL:
+        raise HTTPException(409, "Wait for the simulation to finish before deleting it")
+    remove_report(db, run)
     return Response(status_code=204)

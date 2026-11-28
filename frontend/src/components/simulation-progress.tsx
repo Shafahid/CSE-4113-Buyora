@@ -20,6 +20,16 @@ export const evaluationErrors: Record<string, string> = {
   invalid_output: "The model returned an incomplete assessment. You can retry it.",
   output_truncated: "The assessment stopped before it was complete. Your workspace owner needs to adjust the evaluation service before you try again.",
   interrupted: "Processing was interrupted. Retry this perspective to continue.",
+  model_call_budget: "This run reached its model-call safeguard. Completed perspectives are saved.",
+  token_budget: "This run reached its token safeguard. Completed perspectives are saved.",
+};
+
+const stageLabels: Record<string, string> = {
+  queued: "Queued for a worker",
+  evaluating: "Evaluating buyer perspectives",
+  report_ready: "Report ready",
+  report_ready_partial: "Partial report ready",
+  failed: "Processing finished without usable results",
 };
 
 export function SimulationProgress({ id, onBack }: { id: string; onBack?: () => void }) {
@@ -82,6 +92,7 @@ export function SimulationProgress({ id, onBack }: { id: string; onBack?: () => 
         <span style={{ width: `${progress}%` }} />
       </div>
       <div className={styles.caption}><span>Processing progress</span><strong>{progress}% processed</strong></div>
+      {run && <div className={styles.caption}><span>Job stage</span><strong>{stageLabels[run.stage] ?? run.stage} · {run.expected_personas} expected</strong></div>}
       <div className={styles.caption}><span>{completed} of {total} usable perspectives · {failed} need attention</span><strong>{coveragePercent}% coverage</strong></div>
       <p className={styles.update} aria-live="off">{lastUpdated ? `Last checked ${Math.max(0, Math.floor((clock - lastUpdated) / 1000))}s ago` : "Connecting to your saved run…"}</p>
       {error && <Notice tone="warning">Progress updates paused: {error} {stopped ? "Automatic updates stopped. Your saved results are kept." : "Reconnecting automatically; your saved results are kept."} <button className="text-link" onClick={() => setPollKey((key) => key + 1)}>Check again</button></Notice>}

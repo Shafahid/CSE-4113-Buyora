@@ -23,6 +23,7 @@ from app.models import (
 from app.schemas.execution import (
     PROMPT_VERSION,
     RULES_VERSION,
+    SIMULATION_MODES,
     RunCreate,
     RunProgress,
     RunResponse,
@@ -101,13 +102,25 @@ def can_retry(row):
 
 def response(db, run, cache_hit=False, *, include_report=True):
     rows = evaluations(db, run.id)
+    completed = sum(e.status == "completed" for e in rows)
+    failed = sum(e.status == "failed" for e in rows)
+    queued = sum(e.status == "queued" for e in rows)
+    running = sum(e.status == "running" for e in rows)
+    processed = completed + failed
+    expected = run.expected_personas or len(rows)
     return (RunResponse if include_report else RunProgress)(
         id=run.id,
         simulation_id=run.simulation_id,
         status=run.status,
+        stage=run.stage,
+        expected_personas=expected,
         total=len(rows),
-        completed=sum(e.status == "completed" for e in rows),
-        failed=sum(e.status == "failed" for e in rows),
+        completed=completed,
+        failed=failed,
+        queued=queued,
+        running=running,
+        processed=processed,
+        processing_percent=round(processed * 100 / expected) if expected else 0,
         cache_hit=cache_hit,
         model=run.model,
         created_at=utc_time(run.created_at),
@@ -205,6 +218,16 @@ def prepare_inputs(
         )
     }
     profiles = [p.model_dump() for p in data.personas]
+    mode = data.mode
+    if mode is None:
+        mode = next(
+            (
+                name
+                for name, count in SIMULATION_MODES.items()
+                if count == len(profiles)
+            ),
+            "custom",
+        )
     audience = {
         key: data.audience.get(key, "")
         for key in ("location", "age", "interests", "preferences", "budget", "needs")
@@ -225,6 +248,7 @@ def prepare_inputs(
         "post": post_input,
         "audience": audience,
         "language": data.language,
+        "mode": mode,
         "personas": profiles,
         "checks": checks,
         "rules_version": RULES_VERSION,
@@ -307,6 +331,10 @@ def create_run(db: Session, user_id: int, data: RunCreate, settings: Settings):
         request_id=str(data.request_id),
         fingerprint=fingerprint,
         status="queued",
+<<<<<<< HEAD
+=======
+        stage="queued",
+>>>>>>> 7c316b1109eba01b8e367b41828175e3b27b24e5
         expected_personas=len(profiles),
         inputs=inputs,
         model=model_identity(settings),
@@ -391,9 +419,47 @@ def build_report(run, rows):
                 "scoreDrivers": verdict.get("score_drivers", []),
             }
         )
+    usage = {
+        "modelCalls": sum(row.attempts for row in rows),
+        "inputTokens": sum(
+            event.get("input_tokens") or 0 for row in rows for event in row.history
+        ),
+        "outputTokens": sum(
+            event.get("output_tokens") or 0 for row in rows for event in row.history
+        ),
+        "latencyMs": sum(
+            event.get("latency_ms") or 0 for row in rows for event in row.history
+        ),
+    }
+    costs = [
+        event["cost_usd"]
+        for row in rows
+        for event in row.history
+        if isinstance(event.get("cost_usd"), (int, float))
+    ]
+    policy = source.get("execution_policy", {})
+    usage["costUsd"] = round(sum(costs), 8) if costs else None
+    usage["costTracked"] = bool(costs)
+    usage["modelCallLimit"] = policy.get("max_model_calls")
+    usage["tokenBudget"] = policy.get("token_budget")
+    usage["modelCallsRemaining"] = max(
+        0, (policy.get("max_model_calls") or 0) - usage["modelCalls"]
+    )
+    usage["tokenBudgetRemaining"] = max(
+        0,
+        (policy.get("token_budget") or 0)
+        - usage["inputTokens"]
+        - usage["outputTokens"],
+    )
+    usage["budgetBlocked"] = any(
+        row.error_code in {"model_call_budget", "token_budget"} for row in rows
+    )
     return {
         "id": run.id,
         "source": "server",
+        "status": run.status,
+        "stage": run.stage,
+        "expectedPersonaCount": run.expected_personas,
         "model": run.model,
         "rulesVersion": run.rules_version,
         "promptVersion": source.get("prompt_version"),
@@ -403,20 +469,10 @@ def build_report(run, rows):
         "fallbackCount": sum(
             (row.output or {}).get("evaluation_source") == "fallback" for row in rows
         ),
-        "usage": {
-            "modelCalls": sum(row.attempts for row in rows),
-            "inputTokens": sum(
-                event.get("input_tokens") or 0 for row in rows for event in row.history
-            ),
-            "outputTokens": sum(
-                event.get("output_tokens") or 0 for row in rows for event in row.history
-            ),
-            "latencyMs": sum(
-                event.get("latency_ms") or 0 for row in rows for event in row.history
-            ),
-        },
+        "usage": usage,
         "title": product["name"],
         "createdAt": utc_time(run.created_at).isoformat(),
+        "completedAt": utc_time(run.completed_at).isoformat(),
         "product": {
             "id": str(source["product_id"]),
             "name": product["name"],
@@ -446,6 +502,7 @@ def build_report(run, rows):
         },
         "audience": source["audience"],
         "language": source["language"],
+        "mode": source.get("mode", "custom"),
         "reactions": reactions,
         "revised": "",
         "applied": [],

@@ -28,6 +28,8 @@ def test_initial_upgrade_and_downgrade_compile_as_postgresql_sql(monkeypatch) ->
     assert "CREATE TABLE public.simulations" in upgrade_sql.getvalue()
     assert "CREATE TABLE public.simulation_personas" in upgrade_sql.getvalue()
     assert "CREATE TABLE buyora.persona_adaptations" in upgrade_sql.getvalue()
+    assert "ADD COLUMN stage" in upgrade_sql.getvalue()
+    assert "ADD COLUMN expected_personas" in upgrade_sql.getvalue()
     assert "ix_persona_adaptations_cache" in upgrade_sql.getvalue()
     assert "ADD COLUMN stage VARCHAR(32) DEFAULT 'queued' NOT NULL" in (
         upgrade_sql.getvalue()

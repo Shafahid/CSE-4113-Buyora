@@ -31,9 +31,7 @@ async def main():
                 model=model,
                 api_base=settings.token_bd_api_url,
                 api_key=settings.token_bd_api_key.get_secret_value(),
-                messages=[
-                    {"role": "user", "content": 'Reply with JSON: {"ok": true}'}
-                ],
+                messages=[{"role": "user", "content": 'Reply with JSON: {"ok": true}'}],
                 temperature=0,
                 max_tokens=64,
                 timeout=settings.llm_timeout_seconds,
